@@ -491,3 +491,194 @@
   flex-direction: column;
   gap: 6px;
 }
+
+/* ─── SHARED STAGE WRAPPER ─────────────────────────────────── */
+
+.stage-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ─── STAGE 2 – RECALCULATING ───────────────────────────────── */
+
+.recalc-msg {
+  opacity: 1;
+  animation: recalc-pulse 0.9s ease-in-out infinite !important;
+}
+
+@keyframes recalc-pulse {
+  0%, 100% { opacity: 0.55; text-shadow: 0 0 8px rgba(30, 120, 255, 0.4); }
+  50%       { opacity: 1;    text-shadow: 0 0 16px rgba(30, 180, 255, 0.9); }
+}
+
+/* ─── STAGE 3 – INPUT TRAP ──────────────────────────────────── */
+
+.name-input-group {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.name-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgba(80, 160, 255, 0.7);
+}
+
+.name-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 8, 28, 0.95);
+  border: 1px solid rgba(30, 120, 255, 0.4);
+  border-radius: 3px;
+  color: rgba(180, 220, 255, 0.95);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  padding: 8px 12px;
+  outline: none;
+  letter-spacing: 0.06em;
+  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s;
+}
+
+.name-input:focus {
+  border-color: rgba(30, 120, 255, 0.75);
+  box-shadow: 0 0 12px rgba(30, 120, 255, 0.25);
+}
+
+.name-input:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(255, 60, 60, 0.45);
+  box-shadow: 0 0 8px rgba(255, 60, 60, 0.15);
+}
+
+.name-input::placeholder {
+  color: rgba(255, 80, 80, 0.55);
+  letter-spacing: 0.1em;
+}
+
+.input-warning {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: rgba(255, 80, 80, 0.8);
+  letter-spacing: 0.15em;
+  animation: label-blink 0.35s steps(1) infinite;
+}
+
+/* ─── STAGE 4 – FAKE LOADING ────────────────────────────────── */
+
+.fake-bar-wrap {
+  margin-top: 20px;
+  height: 3px;
+  background: rgba(30, 120, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.fake-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(30, 100, 255, 0.7), rgba(100, 200, 255, 1));
+  box-shadow: 0 0 8px rgba(100, 200, 255, 0.6);
+}
+
+.fake-bar--filling {
+  animation: fake-fill 2.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards;
+}
+
+.fake-bar--stuck {
+  width: 99%;
+  animation: bar-stuck-pulse 1.2s ease-in-out infinite;
+}
+
+.fake-bar--error {
+  width: 99%;
+  animation: bar-error-flicker 0.11s steps(1) infinite;
+}
+
+@keyframes fake-fill {
+  0%   { width: 0%; }
+  18%  { width: 20%; }
+  35%  { width: 21%; }
+  55%  { width: 68%; }
+  72%  { width: 69%; }
+  88%  { width: 94%; }
+  100% { width: 99%; }
+}
+
+@keyframes bar-stuck-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(100, 200, 255, 0.5); }
+  50%       { box-shadow: 0 0 14px rgba(100, 200, 255, 0.9); }
+}
+
+@keyframes bar-error-flicker {
+  0%   { opacity: 1;   background: linear-gradient(90deg, rgba(30,100,255,0.7), rgba(100,200,255,1)); width: 99%; }
+  30%  { opacity: 0.3; background: linear-gradient(90deg, rgba(255,60,60,0.8), rgba(255,120,80,1));  width: 58%; }
+  65%  { opacity: 0.85; background: linear-gradient(90deg, rgba(30,100,255,0.7), rgba(100,200,255,1)); width: 99%; }
+  100% { opacity: 1;   background: linear-gradient(90deg, rgba(30,100,255,0.7), rgba(100,200,255,1)); width: 99%; }
+}
+
+.bar-pct {
+  margin-top: 7px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: rgba(80, 160, 255, 0.65);
+  letter-spacing: 0.12em;
+  text-align: right;
+  min-height: 16px;
+}
+
+.bar-pct--error {
+  color: rgba(255, 80, 80, 0.85);
+  animation: label-blink 0.18s steps(1) infinite;
+}
+
+/* ─── STAGE 5 – REWARD SELECTION ────────────────────────────── */
+
+.reward-btns {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+}
+
+.reward-btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(200, 230, 255, 0.95);
+  background: linear-gradient(135deg, rgba(16, 52, 160, 0.85), rgba(8, 32, 110, 0.9));
+  border: 1px solid rgba(30, 120, 255, 0.65);
+  border-radius: 3px;
+  padding: 9px 22px;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.22, 1.5, 0.36, 1), box-shadow 0.2s;
+  will-change: transform;
+  box-shadow: 0 0 8px rgba(30, 120, 255, 0.25);
+  text-shadow: 0 0 6px rgba(150, 200, 255, 0.6);
+}
+
+.reward-btn:hover {
+  box-shadow: 0 0 16px rgba(30, 120, 255, 0.55);
+}
+
+.invalid-msg {
+  margin-top: 20px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 15px;
+  color: rgba(255, 80, 80, 0.92);
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  animation: textAppear 0.25s ease forwards;
+  text-shadow: 0 0 12px rgba(255, 60, 60, 0.6);
+}
+
+.bracket-red {
+  color: rgba(255, 80, 80, 1);
+  text-shadow: 0 0 14px rgba(255, 60, 60, 0.9);
+  font-weight: bold;
+}
