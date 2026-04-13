@@ -3,7 +3,8 @@ import "@/styles/system.css";
 
 const CORRUPT_CHARS = "!@#$%^&*<>[]{}|;:?/\\~`▓▒░█▄▀■□◆◇";
 const ADMIN_PASSWORD = "hunter";
-const REWARD_NAMES = ["Power", "Gold", "Freedom"];
+const REWARD_NAMES   = ["Power", "Gold", "Freedom"];
+const MAX_STAGE      = 6;
 
 function randomCorrupt(len: number) {
   return Array.from(
@@ -27,36 +28,41 @@ export default function SystemPopup() {
   const [stage, setStage] = useState(1);
   const [isGlitching, setIsGlitching] = useState(false);
   const [corruptText, setCorruptText] = useState("");
-  const glitchDoneRef = useRef<() => void>(() => {});
+  const glitchDoneRef   = useRef<() => void>(() => {});
 
   // ── Stage 1 – dodge ──────────────────────────────────────────
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const popupRef  = useRef<HTMLDivElement>(null);
-  const naturalPos = useRef<{ x: number; y: number } | null>(null);
+  const buttonRef   = useRef<HTMLButtonElement>(null);
+  const popupRef    = useRef<HTMLDivElement>(null);
+  const naturalPos  = useRef<{ x: number; y: number } | null>(null);
 
-  // ── Stage 2 – recalculating phase ────────────────────────────
+  // ── Stage 2 – recalculating ──────────────────────────────────
   const [isRecalculating, setIsRecalculating] = useState(false);
 
   // ── Stage 3 – input trap ─────────────────────────────────────
-  const [inputValue, setInputValue]   = useState("");
+  const [inputValue,   setInputValue]   = useState("");
   const [inputDisabled, setInputDisabled] = useState(false);
 
   // ── Stage 4 – fake loading ───────────────────────────────────
   const [stage4Phase, setStage4Phase] = useState<"filling" | "stuck" | "error">("filling");
 
   // ── Stage 5 – reward selection ───────────────────────────────
-  const [rewards, setRewards]           = useState([...REWARD_NAMES]);
+  const [rewards,       setRewards]       = useState([...REWARD_NAMES]);
   const [rewardInvalid, setRewardInvalid] = useState(false);
-  const [rewardPos, setRewardPos]       = useState([
+  const [rewardPos,     setRewardPos]     = useState([
     { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 },
   ]);
+
+  // ── Stage 6 – fake-out then final ────────────────────────────
+  const [stage6Phase, setStage6Phase] = useState<"granted" | "flicker" | "final">("granted");
+  const stage6DirectRef = useRef(false); // admin bypass → skip straight to "final"
 
   // ── Admin ─────────────────────────────────────────────────────
   const [adminOpen,     setAdminOpen]     = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [adminError,    setAdminError]    = useState(false);
+  const [adminJumpOpen, setAdminJumpOpen] = useState(false);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
   // ────────────────────────────────────────────────────────────
@@ -88,7 +94,7 @@ export default function SystemPopup() {
     return () => { clearInterval(iv); clearTimeout(t); };
   }, [isGlitching]);
 
-  // Stage 2 – recalculating then penalty
+  // Stage 2 – recalculating → penalty
   useEffect(() => {
     if (stage !== 2) return;
     setIsRecalculating(true);
@@ -121,7 +127,7 @@ export default function SystemPopup() {
     setStage4Phase("filling");
     const t1 = setTimeout(() => setStage4Phase("stuck"),  2500);
     const t2 = setTimeout(() => setStage4Phase("error"),  5100);
-    const t3 = setTimeout(() => setStage(5),               6700);
+    const t3 = setTimeout(() => setStage(5),              6700);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [stage]);
 
@@ -133,6 +139,21 @@ export default function SystemPopup() {
     setRewardPos([{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }]);
     const iv = setInterval(() => setRewards(prev => shuffle(prev)), 2800);
     return () => clearInterval(iv);
+  }, [stage]);
+
+  // Stage 6 – "Reward granted." fake-out → flicker → "Reward unavailable."
+  useEffect(() => {
+    if (stage !== 6) return;
+    // Admin direct skip bypasses the fake-out
+    if (stage6DirectRef.current) {
+      stage6DirectRef.current = false;
+      setStage6Phase("final");
+      return;
+    }
+    setStage6Phase("granted");
+    const t1 = setTimeout(() => setStage6Phase("flicker"), 800);
+    const t2 = setTimeout(() => setStage6Phase("final"),   1200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [stage]);
 
   // Admin – auto-focus password input
@@ -183,10 +204,7 @@ export default function SystemPopup() {
     if (rewardInvalid) return;
     setRewardPos(prev => {
       const next = [...prev];
-      next[idx] = {
-        x: (Math.random() - 0.5) * 44,
-        y: (Math.random() - 0.5) * 20,
-      };
+      next[idx] = { x: (Math.random() - 0.5) * 44, y: (Math.random() - 0.5) * 20 };
       return next;
     });
   }, [rewardInvalid]);
@@ -197,7 +215,7 @@ export default function SystemPopup() {
     setTimeout(() => setStage(6), 1400);
   }, [rewardInvalid]);
 
-  // Admin
+  // Admin – auth
   const handleAdminTrigger = useCallback(() => {
     setAdminOpen(true); setAdminPassword(""); setAdminError(false);
   }, []);
@@ -215,8 +233,29 @@ export default function SystemPopup() {
     if (e.key === "Escape") setAdminOpen(false);
   }, [handleAdminSubmit]);
 
+  // Admin – controls
+  const handleSkipNext = useCallback(() => {
+    setIsGlitching(false);
+    setStage(prev => {
+      const next = Math.min(prev + 1, MAX_STAGE);
+      if (next === MAX_STAGE) stage6DirectRef.current = true;
+      return next;
+    });
+  }, []);
+
   const handleSkipToFinal = useCallback(() => {
-    setStage(6); setIsGlitching(false); setAdminOpen(false);
+    setIsGlitching(false);
+    stage6DirectRef.current = true;
+    setStage(MAX_STAGE);
+    setAdminOpen(false);
+  }, []);
+
+  const handleJumpToStage = useCallback((s: number) => {
+    setIsGlitching(false);
+    if (s === MAX_STAGE) stage6DirectRef.current = true;
+    setStage(s);
+    setAdminJumpOpen(false);
+    setAdminOpen(false);
   }, []);
 
   const handleAdminGlitch = useCallback(() => {
@@ -227,7 +266,7 @@ export default function SystemPopup() {
 
   const handleReset = useCallback(() => {
     setStage(1); setIsGlitching(false); setTranslate({ x: 0, y: 0 });
-    setAdminOpen(false); setAdminUnlocked(false);
+    setAdminOpen(false); setAdminUnlocked(false); setAdminJumpOpen(false);
   }, []);
 
   // ────────────────────────────────────────────────────────────
@@ -236,7 +275,7 @@ export default function SystemPopup() {
   return (
     <div className={`screen${isGlitching ? " screen--flash" : ""}`}>
 
-      {/* Hidden admin trigger */}
+      {/* Hidden admin trigger (top-left 48×48 invisible zone) */}
       <div className="admin-trigger" onClick={handleAdminTrigger} aria-hidden="true" />
 
       {/* Admin popup */}
@@ -246,10 +285,14 @@ export default function SystemPopup() {
             <span className="system-badge">SYSTEM</span>
             <button className="admin-close" onClick={() => setAdminOpen(false)}>✕</button>
           </div>
+
           {!adminUnlocked ? (
             <div className="admin-popup-body">
               <p className="admin-message">
                 <span className="bracket">[SYSTEM]</span> Developer access detected.
+              </p>
+              <p className="admin-message" style={{ marginTop: 4 }}>
+                <span className="bracket">[SYSTEM]</span> Enter override key.
               </p>
               <div className="admin-input-row">
                 <input
@@ -268,12 +311,48 @@ export default function SystemPopup() {
           ) : (
             <div className="admin-popup-body">
               <p className="admin-message admin-message--success">
-                <span className="bracket">[SYSTEM]</span> Admin mode active.
+                <span className="bracket">[SYSTEM]</span> Admin mode active. Stage {stage}/{MAX_STAGE}.
               </p>
               <div className="admin-controls">
-                <button className="admin-btn admin-btn--full" onClick={handleSkipToFinal}>Skip to Final Stage</button>
-                <button className="admin-btn admin-btn--full" onClick={handleAdminGlitch} disabled={isGlitching}>Trigger Glitch Effect</button>
-                <button className="admin-btn admin-btn--full admin-btn--danger" onClick={handleReset}>Reset Game</button>
+
+                <button className="admin-btn admin-btn--full" onClick={handleSkipNext}
+                  disabled={stage >= MAX_STAGE}>
+                  Skip to Next Stage
+                </button>
+
+                <button className="admin-btn admin-btn--full" onClick={handleSkipToFinal}
+                  disabled={stage >= MAX_STAGE}>
+                  Skip to Final Stage
+                </button>
+
+                {/* Jump to any stage */}
+                <button className="admin-btn admin-btn--full"
+                  onClick={() => setAdminJumpOpen(o => !o)}>
+                  Jump to Any Stage {adminJumpOpen ? "▲" : "▼"}
+                </button>
+                {adminJumpOpen && (
+                  <div className="admin-jump-grid">
+                    {Array.from({ length: MAX_STAGE }, (_, i) => i + 1).map(s => (
+                      <button
+                        key={s}
+                        className={`admin-jump-btn${s === stage ? " admin-jump-btn--active" : ""}`}
+                        onClick={() => handleJumpToStage(s)}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <button className="admin-btn admin-btn--full" onClick={handleAdminGlitch}
+                  disabled={isGlitching}>
+                  Trigger Glitch Effect
+                </button>
+
+                <button className="admin-btn admin-btn--full admin-btn--danger" onClick={handleReset}>
+                  Reset Game
+                </button>
+
               </div>
             </div>
           )}
@@ -288,7 +367,7 @@ export default function SystemPopup() {
           <span className="system-badge">SYSTEM</span>
         </div>
 
-        <div className="popup-body">
+        <div className={`popup-body${stage === 6 && stage6Phase === "flicker" ? " popup-body--flicker" : ""}`}>
 
           {/* Stage 1 */}
           {stage === 1 && !isGlitching && (
@@ -364,7 +443,7 @@ export default function SystemPopup() {
                 <div className={`fake-bar fake-bar--${stage4Phase}`} />
               </div>
               <p className={`bar-pct${stage4Phase === "error" ? " bar-pct--error" : ""}`}>
-                {stage4Phase === "error"  ? "ERR_0x4F2A"
+                {stage4Phase === "error"   ? "ERR_0x4F2A"
                  : stage4Phase === "stuck" ? "99%"
                  : ""}
               </p>
@@ -399,14 +478,23 @@ export default function SystemPopup() {
             </div>
           )}
 
-          {/* Stage 6 – final */}
+          {/* Stage 6 – fake-out then final */}
           {stage === 6 && (
-            <>
-              <p className="system-message" key="s6">
-                <span className="bracket">[SYSTEM]</span> Reward unavailable.
-              </p>
-              <p className="retry-text">Please try again tomorrow.</p>
-            </>
+            <div key="s6" className="stage-block">
+              {(stage6Phase === "granted" || stage6Phase === "flicker") && (
+                <p className="system-message reward-granted-msg">
+                  <span className="bracket-green">[SYSTEM]</span> Reward granted.
+                </p>
+              )}
+              {stage6Phase === "final" && (
+                <>
+                  <p className="system-message">
+                    <span className="bracket">[SYSTEM]</span> Reward unavailable.
+                  </p>
+                  <p className="retry-text">Please try again tomorrow.</p>
+                </>
+              )}
+            </div>
           )}
 
         </div>

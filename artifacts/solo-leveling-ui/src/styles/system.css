@@ -682,3 +682,69 @@
   text-shadow: 0 0 14px rgba(255, 60, 60, 0.9);
   font-weight: bold;
 }
+
+/* ─── STAGE 6 – FAKE-OUT + FLICKER ──────────────────────────── */
+
+.reward-granted-msg {
+  color: rgba(60, 220, 110, 0.95);
+  text-shadow: 0 0 12px rgba(60, 220, 110, 0.55);
+  animation: textAppear 0.25s ease forwards;
+}
+
+.bracket-green {
+  color: rgba(60, 220, 110, 1);
+  text-shadow: 0 0 14px rgba(60, 220, 110, 0.85);
+  font-weight: bold;
+}
+
+.popup-body--flicker {
+  animation: body-flicker 0.38s steps(1) forwards;
+}
+
+@keyframes body-flicker {
+  0%   { opacity: 1; }
+  12%  { opacity: 0; }
+  24%  { opacity: 0.7; }
+  38%  { opacity: 0; }
+  52%  { opacity: 0.5; }
+  66%  { opacity: 0; }
+  80%  { opacity: 0.9; }
+  92%  { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ─── ADMIN – JUMP TO STAGE ──────────────────────────────────── */
+
+.admin-jump-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+  padding: 4px 0 2px;
+}
+
+.admin-jump-btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(160, 200, 255, 0.85);
+  background: rgba(10, 40, 120, 0.35);
+  border: 1px solid rgba(30, 120, 255, 0.35);
+  border-radius: 3px;
+  padding: 5px 0;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+.admin-jump-btn:hover {
+  background: rgba(30, 80, 200, 0.55);
+  border-color: rgba(30, 120, 255, 0.75);
+  box-shadow: 0 0 6px rgba(30, 120, 255, 0.3);
+}
+
+.admin-jump-btn--active {
+  background: rgba(30, 80, 200, 0.6);
+  border-color: rgba(30, 120, 255, 0.9);
+  color: rgba(200, 230, 255, 1);
+  box-shadow: 0 0 8px rgba(30, 120, 255, 0.4);
+}
