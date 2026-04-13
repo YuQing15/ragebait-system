@@ -6,6 +6,9 @@ const ADMIN_PASSWORD = "hunter";
 const REWARD_NAMES   = ["Power", "Gold", "Freedom"];
 const MAX_STAGE      = 6;
 
+// Proximity threshold (px) at which the dodge button starts fleeing
+const DODGE_RADIUS   = 100;
+
 function randomCorrupt(len: number) {
   return Array.from(
     { length: len },
@@ -25,23 +28,25 @@ function shuffle<T>(arr: T[]): T[] {
 export default function SystemPopup() {
 
   // ── Core ─────────────────────────────────────────────────────
-  const [stage, setStage] = useState(1);
+  const [stage, setStage]         = useState(1);
   const [isGlitching, setIsGlitching] = useState(false);
   const [corruptText, setCorruptText] = useState("");
-  const glitchDoneRef   = useRef<() => void>(() => {});
+  const glitchDoneRef = useRef<() => void>(() => {});
 
-  // ── Stage 1 – dodge ──────────────────────────────────────────
+  // ── Stage 1 – proximity dodge ────────────────────────────────
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const buttonRef   = useRef<HTMLButtonElement>(null);
   const popupRef    = useRef<HTMLDivElement>(null);
   const naturalPos  = useRef<{ x: number; y: number } | null>(null);
+  const dodgeCoolRef = useRef(false); // prevent rapid re-dodge
 
   // ── Stage 2 – recalculating ──────────────────────────────────
   const [isRecalculating, setIsRecalculating] = useState(false);
 
   // ── Stage 3 – input trap ─────────────────────────────────────
-  const [inputValue,   setInputValue]   = useState("");
+  const [inputValue,    setInputValue]    = useState("");
   const [inputDisabled, setInputDisabled] = useState(false);
+  const inputValueRef = useRef("");        // readable inside intervals
 
   // ── Stage 4 – fake loading ───────────────────────────────────
   const [stage4Phase, setStage4Phase] = useState<"filling" | "stuck" | "error">("filling");
@@ -53,9 +58,13 @@ export default function SystemPopup() {
     { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 },
   ]);
 
-  // ── Stage 6 – fake-out then final ────────────────────────────
-  const [stage6Phase, setStage6Phase] = useState<"granted" | "flicker" | "final">("granted");
-  const stage6DirectRef = useRef(false); // admin bypass → skip straight to "final"
+  // ── Stage 6 – fake-out + interactive Claim ───────────────────
+  const [stage6Phase, setStage6Phase] = useState<"granted" | "claiming" | "final">("granted");
+  const stage6DirectRef = useRef(false);
+
+  // ── Ragebait helpers ─────────────────────────────────────────
+  const [pendingAction, setPendingAction] = useState(false); // delayed-click state
+  const [btnJammed,     setBtnJammed]     = useState(false); // cursor interference
 
   // ── Admin ─────────────────────────────────────────────────────
   const [adminOpen,     setAdminOpen]     = useState(false);
@@ -102,32 +111,45 @@ export default function SystemPopup() {
     return () => clearTimeout(t);
   }, [stage]);
 
-  // Stage 3 – chaos interval + auto-advance
+  // Stage 3 – chaos triggers NEAR COMPLETION (once ≥ 5 chars)
   useEffect(() => {
     if (stage !== 3) return;
     setInputValue("");
+    inputValueRef.current = "";
     setInputDisabled(false);
     const JUNK = "█▓▒!?#@∎";
+
     const iv = setInterval(() => {
+      const len = inputValueRef.current.length;
+      if (len < 5) return; // leave them alone while typing starts
+      // chaos scales with length: more chars → more aggressive
+      const aggressiveness = Math.min(1, (len - 4) / 8);
       const r = Math.random();
-      if      (r < 0.28) setInputValue(v => v.slice(0, -1));
-      else if (r < 0.44) setInputValue(v => v + JUNK[Math.floor(Math.random() * JUNK.length)]);
-      else if (r < 0.58) {
+      if (r < 0.30 * aggressiveness) {
+        // delete the last 1–2 chars
+        const del = Math.random() < 0.4 ? 2 : 1;
+        setInputValue(v => v.slice(0, -del));
+      } else if (r < 0.50 * aggressiveness) {
+        // insert junk char mid-way
+        setInputValue(v => v + JUNK[Math.floor(Math.random() * JUNK.length)]);
+      } else if (r < 0.62 * aggressiveness) {
+        // temporarily lock input
         setInputDisabled(true);
-        setTimeout(() => setInputDisabled(false), 750);
+        setTimeout(() => setInputDisabled(false), 800);
       }
-    }, 850);
+    }, 700);
+
     const autoAdv = setTimeout(() => setStage(4), 13000);
     return () => { clearInterval(iv); clearTimeout(autoAdv); };
   }, [stage]);
 
-  // Stage 4 – fake loading phases
+  // Stage 4 – fake loading: reliably stops at 98–99%
   useEffect(() => {
     if (stage !== 4) return;
     setStage4Phase("filling");
-    const t1 = setTimeout(() => setStage4Phase("stuck"),  2500);
-    const t2 = setTimeout(() => setStage4Phase("error"),  5100);
-    const t3 = setTimeout(() => setStage(5),              6700);
+    const t1 = setTimeout(() => setStage4Phase("stuck"),  2600);
+    const t2 = setTimeout(() => setStage4Phase("error"),  5300);
+    const t3 = setTimeout(() => setStage(5),              6900);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [stage]);
 
@@ -141,19 +163,29 @@ export default function SystemPopup() {
     return () => clearInterval(iv);
   }, [stage]);
 
-  // Stage 6 – "Reward granted." fake-out → flicker → "Reward unavailable."
+  // Stage 6 – interactive: stays on "granted" until Claim is clicked
   useEffect(() => {
     if (stage !== 6) return;
-    // Admin direct skip bypasses the fake-out
     if (stage6DirectRef.current) {
       stage6DirectRef.current = false;
       setStage6Phase("final");
       return;
     }
     setStage6Phase("granted");
-    const t1 = setTimeout(() => setStage6Phase("flicker"), 800);
-    const t2 = setTimeout(() => setStage6Phase("final"),   1200);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    // no auto-advance — user must click Claim
+  }, [stage]);
+
+  // Cursor interference: randomly jam footer buttons on stages 2–5
+  useEffect(() => {
+    if (stage < 2 || stage > 5) return;
+    setBtnJammed(false);
+    const iv = setInterval(() => {
+      if (Math.random() < 0.45) {
+        setBtnJammed(true);
+        setTimeout(() => setBtnJammed(false), 420);
+      }
+    }, 3800);
+    return () => { clearInterval(iv); setBtnJammed(false); };
   }, [stage]);
 
   // Admin – auto-focus password input
@@ -163,18 +195,41 @@ export default function SystemPopup() {
   }, [adminOpen, adminUnlocked]);
 
   // ────────────────────────────────────────────────────────────
+  // Helpers
+  // ────────────────────────────────────────────────────────────
+
+  // Wrap a button action with a 0.6–0.8 s visible delay
+  const withDelay = useCallback((fn: () => void, ms = 700) => {
+    if (pendingAction || btnJammed) return;
+    setPendingAction(true);
+    setTimeout(() => { setPendingAction(false); fn(); }, ms);
+  }, [pendingAction, btnJammed]);
+
+  // ────────────────────────────────────────────────────────────
   // Handlers
   // ────────────────────────────────────────────────────────────
 
-  // Stage 1 – dodge
-  const handleMouseEnter = useCallback(() => {
-    if (stage !== 1 || isGlitching) return;
+  // Stage 1 – proximity dodge via onMouseMove on popup
+  const handlePopupMouseMove = useCallback((e: React.MouseEvent) => {
+    if (stage !== 1 || isGlitching || dodgeCoolRef.current) return;
     const btn   = buttonRef.current;
     const popup = popupRef.current;
     if (!btn || !popup || !naturalPos.current) return;
+
     const bR = btn.getBoundingClientRect();
     const pR = popup.getBoundingClientRect();
-    const pad = 20;
+
+    // Button centre in viewport coords
+    const btnCx = bR.left + bR.width  / 2;
+    const btnCy = bR.top  + bR.height / 2;
+    const dx = e.clientX - btnCx;
+    const dy = e.clientY - btnCy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist > DODGE_RADIUS) return; // cursor still far away
+
+    // Dodge: pick a random position well away from the cursor
+    const pad  = 20;
     const minX = pad, maxX = pR.width  - bR.width  - pad;
     const minY = pad, maxY = pR.height - bR.height - pad;
     let tx: number, ty: number, tries = 0;
@@ -183,11 +238,15 @@ export default function SystemPopup() {
       ty = minY + Math.random() * (maxY - minY);
       tries++;
     } while (
-      tries < 10 &&
-      Math.abs(tx - (naturalPos.current.x + translate.x)) < 60 &&
-      Math.abs(ty - (naturalPos.current.y + translate.y)) < 30
+      tries < 12 &&
+      Math.abs(tx - (naturalPos.current.x + translate.x)) < 70 &&
+      Math.abs(ty - (naturalPos.current.y + translate.y)) < 35
     );
     setTranslate({ x: tx - naturalPos.current.x, y: ty - naturalPos.current.y });
+
+    // Cooldown so the button doesn't spasm on every pixel
+    dodgeCoolRef.current = true;
+    setTimeout(() => { dodgeCoolRef.current = false; }, 280);
   }, [stage, isGlitching, translate]);
 
   const handleAccept = useCallback(() => {
@@ -196,15 +255,23 @@ export default function SystemPopup() {
     setIsGlitching(true);
   }, []);
 
-  // Stage 3 – submit
-  const handleNameSubmit = useCallback(() => setStage(4), []);
+  // Stage 3 – keep ref in sync
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setInputValue(v);
+    inputValueRef.current = v;
+  }, []);
+
+  const handleNameSubmit = useCallback(() => {
+    withDelay(() => setStage(4));
+  }, [withDelay]);
 
   // Stage 5 – reward buttons
   const handleRewardHover = useCallback((idx: number) => {
     if (rewardInvalid) return;
     setRewardPos(prev => {
       const next = [...prev];
-      next[idx] = { x: (Math.random() - 0.5) * 44, y: (Math.random() - 0.5) * 20 };
+      next[idx] = { x: (Math.random() - 0.5) * 50, y: (Math.random() - 0.5) * 22 };
       return next;
     });
   }, [rewardInvalid]);
@@ -214,6 +281,18 @@ export default function SystemPopup() {
     setRewardInvalid(true);
     setTimeout(() => setStage(6), 1400);
   }, [rewardInvalid]);
+
+  // Stage 6 – Claim button: delay → glitch transition → final
+  const handleClaim = useCallback(() => {
+    if (stage6Phase !== "granted" || pendingAction || btnJammed) return;
+    setPendingAction(true);
+    setTimeout(() => {
+      setPendingAction(false);
+      // Mini-glitch: use the body-flicker CSS, then flip to final
+      setStage6Phase("claiming");
+      setTimeout(() => setStage6Phase("final"), 420);
+    }, 650);
+  }, [stage6Phase, pendingAction, btnJammed]);
 
   // Admin – auth
   const handleAdminTrigger = useCallback(() => {
@@ -235,7 +314,7 @@ export default function SystemPopup() {
 
   // Admin – controls
   const handleSkipNext = useCallback(() => {
-    setIsGlitching(false);
+    setIsGlitching(false); setPendingAction(false); setBtnJammed(false);
     setStage(prev => {
       const next = Math.min(prev + 1, MAX_STAGE);
       if (next === MAX_STAGE) stage6DirectRef.current = true;
@@ -244,14 +323,14 @@ export default function SystemPopup() {
   }, []);
 
   const handleSkipToFinal = useCallback(() => {
-    setIsGlitching(false);
+    setIsGlitching(false); setPendingAction(false); setBtnJammed(false);
     stage6DirectRef.current = true;
     setStage(MAX_STAGE);
     setAdminOpen(false);
   }, []);
 
   const handleJumpToStage = useCallback((s: number) => {
-    setIsGlitching(false);
+    setIsGlitching(false); setPendingAction(false); setBtnJammed(false);
     if (s === MAX_STAGE) stage6DirectRef.current = true;
     setStage(s);
     setAdminJumpOpen(false);
@@ -266,14 +345,20 @@ export default function SystemPopup() {
 
   const handleReset = useCallback(() => {
     setStage(1); setIsGlitching(false); setTranslate({ x: 0, y: 0 });
+    setPendingAction(false); setBtnJammed(false);
     setAdminOpen(false); setAdminUnlocked(false); setAdminJumpOpen(false);
   }, []);
 
   // ────────────────────────────────────────────────────────────
   // Render
   // ────────────────────────────────────────────────────────────
+
+  // Which CSS classes flicker: stage 6 "claiming" phase OR btn-pending pulse
+  const bodyFlicker = stage === 6 && stage6Phase === "claiming";
+
   return (
-    <div className={`screen${isGlitching ? " screen--flash" : ""}`}>
+    <div className={`screen${isGlitching ? " screen--flash" : ""}`}
+      onMouseMove={handlePopupMouseMove}>
 
       {/* Hidden admin trigger (top-left 48×48 invisible zone) */}
       <div className="admin-trigger" onClick={handleAdminTrigger} aria-hidden="true" />
@@ -325,7 +410,6 @@ export default function SystemPopup() {
                   Skip to Final Stage
                 </button>
 
-                {/* Jump to any stage */}
                 <button className="admin-btn admin-btn--full"
                   onClick={() => setAdminJumpOpen(o => !o)}>
                   Jump to Any Stage {adminJumpOpen ? "▲" : "▼"}
@@ -367,7 +451,7 @@ export default function SystemPopup() {
           <span className="system-badge">SYSTEM</span>
         </div>
 
-        <div className={`popup-body${stage === 6 && stage6Phase === "flicker" ? " popup-body--flicker" : ""}`}>
+        <div className={`popup-body${bodyFlicker ? " popup-body--flicker" : ""}`}>
 
           {/* Stage 1 */}
           {stage === 1 && !isGlitching && (
@@ -376,7 +460,7 @@ export default function SystemPopup() {
             </p>
           )}
 
-          {/* Glitch overlay content */}
+          {/* Glitch overlay */}
           {isGlitching && (
             <>
               <p className="system-message glitch-text" key="glitch">
@@ -420,7 +504,7 @@ export default function SystemPopup() {
                   value={inputValue}
                   disabled={inputDisabled}
                   placeholder={inputDisabled ? "[ INPUT LOCKED ]" : ""}
-                  onChange={e => setInputValue(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={e => { if (e.key === "Enter") handleNameSubmit(); }}
                   maxLength={40}
                   autoFocus
@@ -478,10 +562,10 @@ export default function SystemPopup() {
             </div>
           )}
 
-          {/* Stage 6 – fake-out then final */}
+          {/* Stage 6 – fake-out with interactive Claim */}
           {stage === 6 && (
             <div key="s6" className="stage-block">
-              {(stage6Phase === "granted" || stage6Phase === "flicker") && (
+              {(stage6Phase === "granted" || stage6Phase === "claiming") && (
                 <p className="system-message reward-granted-msg">
                   <span className="bracket-green">[SYSTEM]</span> Reward granted.
                 </p>
@@ -506,20 +590,39 @@ export default function SystemPopup() {
               ref={buttonRef}
               className="accept-btn accept-btn--dodge"
               style={{ transform: `translate(${translate.x}px,${translate.y}px)` }}
-              onMouseEnter={handleMouseEnter}
               onClick={handleAccept}
             >
               Accept
             </button>
           )}
+
           {stage === 2 && !isGlitching && !isRecalculating && (
-            <button className="accept-btn" onClick={() => setStage(3)}>
-              Continue
+            <button
+              className={`accept-btn${pendingAction ? " accept-btn--pending" : ""}${btnJammed ? " accept-btn--jammed" : ""}`}
+              onClick={() => withDelay(() => setStage(3))}
+              disabled={pendingAction || btnJammed}
+            >
+              {pendingAction ? "PROCESSING..." : "Continue"}
             </button>
           )}
+
           {stage === 3 && (
-            <button className="accept-btn" onClick={handleNameSubmit}>
-              Submit
+            <button
+              className={`accept-btn${pendingAction ? " accept-btn--pending" : ""}${btnJammed ? " accept-btn--jammed" : ""}`}
+              onClick={handleNameSubmit}
+              disabled={pendingAction || btnJammed}
+            >
+              {pendingAction ? "PROCESSING..." : "Submit"}
+            </button>
+          )}
+
+          {stage === 6 && stage6Phase === "granted" && (
+            <button
+              className={`accept-btn accept-btn--granted${pendingAction ? " accept-btn--pending" : ""}${btnJammed ? " accept-btn--jammed" : ""}`}
+              onClick={handleClaim}
+              disabled={pendingAction || btnJammed}
+            >
+              {pendingAction ? "PROCESSING..." : "Claim"}
             </button>
           )}
         </div>
