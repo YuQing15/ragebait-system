@@ -1,39 +1,64 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useLayoutEffect, useCallback } from "react";
 import "@/styles/system.css";
 
 export default function SystemPopup() {
   const [stage, setStage] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const naturalPos = useRef<{ x: number; y: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (stage !== 1) return;
+    const btn = buttonRef.current;
+    const popup = popupRef.current;
+    if (!btn || !popup) return;
+    const btnRect = btn.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+    naturalPos.current = {
+      x: btnRect.left - popupRect.left,
+      y: btnRect.top - popupRect.top,
+    };
+  }, [stage]);
 
   const handleMouseEnter = useCallback(() => {
     if (stage !== 1) return;
     const btn = buttonRef.current;
-    if (!btn) return;
+    const popup = popupRef.current;
+    if (!btn || !popup || !naturalPos.current) return;
 
-    const container = btn.closest(".popup") as HTMLElement;
-    if (!container) return;
-
-    const containerRect = container.getBoundingClientRect();
     const btnRect = btn.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+    const padding = 20;
 
-    const maxX = containerRect.width - btnRect.width - 24;
-    const maxY = containerRect.height - btnRect.height - 24;
+    const minX = padding;
+    const maxX = popupRect.width - btnRect.width - padding;
+    const minY = padding;
+    const maxY = popupRect.height - btnRect.height - padding;
 
-    const randomX = Math.floor(Math.random() * maxX);
-    const randomY = Math.floor(Math.random() * maxY);
+    let targetX: number;
+    let targetY: number;
+    let attempts = 0;
 
-    btn.style.position = "absolute";
-    btn.style.left = `${randomX}px`;
-    btn.style.top = `${randomY}px`;
-  }, [stage]);
+    do {
+      targetX = minX + Math.random() * (maxX - minX);
+      targetY = minY + Math.random() * (maxY - minY);
+      attempts++;
+    } while (
+      attempts < 10 &&
+      Math.abs(targetX - (naturalPos.current.x + translate.x)) < 60 &&
+      Math.abs(targetY - (naturalPos.current.y + translate.y)) < 30
+    );
+
+    setTranslate({
+      x: targetX - naturalPos.current.x,
+      y: targetY - naturalPos.current.y,
+    });
+  }, [stage, translate]);
 
   const handleAccept = useCallback(() => {
     setStage(2);
-    if (buttonRef.current) {
-      buttonRef.current.style.position = "";
-      buttonRef.current.style.left = "";
-      buttonRef.current.style.top = "";
-    }
+    setTranslate({ x: 0, y: 0 });
   }, []);
 
   const handleContinue = useCallback(() => {
@@ -42,7 +67,7 @@ export default function SystemPopup() {
 
   return (
     <div className="screen">
-      <div className="popup">
+      <div className="popup" ref={popupRef}>
         <div className="popup-header">
           <span className="system-badge">SYSTEM</span>
         </div>
@@ -72,7 +97,8 @@ export default function SystemPopup() {
           {stage === 1 && (
             <button
               ref={buttonRef}
-              className="accept-btn"
+              className="accept-btn accept-btn--dodge"
+              style={{ transform: `translate(${translate.x}px, ${translate.y}px)` }}
               onMouseEnter={handleMouseEnter}
               onClick={handleAccept}
             >

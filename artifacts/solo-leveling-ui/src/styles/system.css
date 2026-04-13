@@ -159,16 +159,27 @@
   padding: 10px 32px;
   border-radius: 3px;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
   box-shadow: 0 0 10px rgba(30, 120, 255, 0.4), inset 0 1px 0 rgba(255,255,255,0.08);
   text-shadow: 0 0 8px rgba(150, 200, 255, 0.8);
   animation: btnAppear 0.4s ease forwards 0.4s;
   opacity: 0;
+  transition: box-shadow 0.15s ease;
+}
+
+.accept-btn--dodge {
+  animation: btnAppearOpacity 0.4s ease forwards 0.4s;
+  transition: transform 0.25s cubic-bezier(0.22, 1.4, 0.36, 1), box-shadow 0.15s ease;
+  will-change: transform;
 }
 
 @keyframes btnAppear {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes btnAppearOpacity {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .accept-btn:hover {
