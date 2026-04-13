@@ -324,3 +324,170 @@
   85%  { width: 79%; }
   100% { width: 100%; }
 }
+
+/* ─── ADMIN MODE ─────────────────────────────────────────────── */
+
+.admin-trigger {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 48px;
+  z-index: 100;
+  cursor: default;
+}
+
+.admin-popup {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: 300px;
+  background: linear-gradient(135deg, rgba(0, 8, 24, 0.98), rgba(0, 16, 40, 0.97));
+  border: 1px solid rgba(30, 120, 255, 0.55);
+  border-radius: 4px;
+  box-shadow:
+    0 0 16px rgba(30, 120, 255, 0.3),
+    0 0 40px rgba(30, 120, 255, 0.1);
+  z-index: 200;
+  animation: adminSlideIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+@keyframes adminSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.admin-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(30, 120, 255, 0.2);
+}
+
+.admin-close {
+  background: none;
+  border: none;
+  color: rgba(100, 150, 255, 0.5);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color 0.15s;
+}
+
+.admin-close:hover {
+  color: rgba(100, 180, 255, 0.9);
+}
+
+.admin-popup-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-message {
+  font-size: 12px;
+  color: rgba(180, 210, 255, 0.85);
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+}
+
+.admin-message--success .bracket {
+  color: rgba(60, 220, 120, 0.9);
+  text-shadow: 0 0 8px rgba(60, 220, 120, 0.7);
+}
+
+.admin-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-input {
+  flex: 1;
+  background: rgba(0, 10, 30, 0.9);
+  border: 1px solid rgba(30, 120, 255, 0.35);
+  border-radius: 3px;
+  color: rgba(180, 220, 255, 0.9);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  letter-spacing: 0.08em;
+}
+
+.admin-input:focus {
+  border-color: rgba(30, 120, 255, 0.7);
+  box-shadow: 0 0 8px rgba(30, 120, 255, 0.25);
+}
+
+.admin-input--error {
+  border-color: rgba(255, 60, 60, 0.6);
+  box-shadow: 0 0 8px rgba(255, 60, 60, 0.2);
+  animation: shake-input 0.3s ease;
+}
+
+@keyframes shake-input {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-4px); }
+  75%       { transform: translateX(4px); }
+}
+
+.admin-error {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: rgba(255, 80, 80, 0.8);
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.admin-btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: rgba(180, 220, 255, 0.9);
+  background: rgba(20, 60, 180, 0.3);
+  border: 1px solid rgba(30, 120, 255, 0.45);
+  border-radius: 3px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.admin-btn:hover:not(:disabled) {
+  background: rgba(30, 80, 220, 0.5);
+  border-color: rgba(30, 120, 255, 0.8);
+  box-shadow: 0 0 8px rgba(30, 120, 255, 0.3);
+}
+
+.admin-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.admin-btn--full {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+}
+
+.admin-btn--danger {
+  color: rgba(255, 120, 120, 0.85);
+  border-color: rgba(255, 60, 60, 0.35);
+  background: rgba(120, 20, 20, 0.2);
+}
+
+.admin-btn--danger:hover:not(:disabled) {
+  background: rgba(180, 30, 30, 0.35);
+  border-color: rgba(255, 60, 60, 0.7);
+  box-shadow: 0 0 8px rgba(255, 60, 60, 0.25);
+}
+
+.admin-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
