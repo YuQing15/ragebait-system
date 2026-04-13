@@ -1,8 +1,19 @@
-import { useState, useRef, useLayoutEffect, useCallback } from "react";
+import { useState, useRef, useLayoutEffect, useCallback, useEffect } from "react";
 import "@/styles/system.css";
+
+const CORRUPT_CHARS = "!@#$%^&*<>[]{}|;:?/\\~`▓▒░█▄▀■□◆◇";
+
+function randomCorrupt(len: number) {
+  return Array.from(
+    { length: len },
+    () => CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)]
+  ).join("");
+}
 
 export default function SystemPopup() {
   const [stage, setStage] = useState(1);
+  const [isGlitching, setIsGlitching] = useState(false);
+  const [corruptText, setCorruptText] = useState("");
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -21,8 +32,28 @@ export default function SystemPopup() {
     };
   }, [stage]);
 
+  useEffect(() => {
+    if (!isGlitching) return;
+
+    setCorruptText(randomCorrupt(24));
+    const interval = setInterval(() => {
+      setCorruptText(randomCorrupt(16 + Math.floor(Math.random() * 12)));
+    }, 70);
+
+    const timer = setTimeout(() => {
+      clearInterval(interval);
+      setIsGlitching(false);
+      setStage(2);
+    }, 1600);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
+  }, [isGlitching]);
+
   const handleMouseEnter = useCallback(() => {
-    if (stage !== 1) return;
+    if (stage !== 1 || isGlitching) return;
     const btn = buttonRef.current;
     const popup = popupRef.current;
     if (!btn || !popup || !naturalPos.current) return;
@@ -54,11 +85,11 @@ export default function SystemPopup() {
       x: targetX - naturalPos.current.x,
       y: targetY - naturalPos.current.y,
     });
-  }, [stage, translate]);
+  }, [stage, isGlitching, translate]);
 
   const handleAccept = useCallback(() => {
-    setStage(2);
     setTranslate({ x: 0, y: 0 });
+    setIsGlitching(true);
   }, []);
 
   const handleContinue = useCallback(() => {
@@ -66,23 +97,45 @@ export default function SystemPopup() {
   }, []);
 
   return (
-    <div className="screen">
-      <div className="popup" ref={popupRef}>
+    <div className={`screen${isGlitching ? " screen--flash" : ""}`}>
+      <div
+        className={`popup${isGlitching ? " popup--glitch" : ""}`}
+        ref={popupRef}
+      >
+        {isGlitching && <div className="scan-bar" />}
+
         <div className="popup-header">
           <span className="system-badge">SYSTEM</span>
         </div>
 
         <div className="popup-body">
-          {stage === 1 && (
+          {stage === 1 && !isGlitching && (
             <p className="system-message" key="stage1">
               <span className="bracket">[SYSTEM]</span> Daily quest unlocked.
             </p>
           )}
+
+          {isGlitching && (
+            <>
+              <p className="system-message glitch-text" key="glitch">
+                <span className="bracket">[SYSTEM]</span>{" "}
+                <span className="corrupt-chars">{corruptText}</span>
+              </p>
+              <div className="glitch-status">
+                <span className="glitch-label">&gt; SCANNING...</span>
+              </div>
+              <div className="glitch-progress">
+                <div className="glitch-progress-bar" />
+              </div>
+            </>
+          )}
+
           {stage === 2 && (
             <p className="system-message" key="stage2">
               <span className="bracket">[SYSTEM]</span> Hidden penalty activated.
             </p>
           )}
+
           {stage === 3 && (
             <>
               <p className="system-message" key="stage3">
@@ -94,7 +147,7 @@ export default function SystemPopup() {
         </div>
 
         <div className="popup-footer">
-          {stage === 1 && (
+          {stage === 1 && !isGlitching && (
             <button
               ref={buttonRef}
               className="accept-btn accept-btn--dodge"

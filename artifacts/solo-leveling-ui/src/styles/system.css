@@ -189,3 +189,138 @@
 .accept-btn:active {
   transform: scale(0.97);
 }
+
+/* ─── GLITCH TRANSITION ─────────────────────────────────────── */
+
+.screen--flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: screen-flash 1.6s ease forwards;
+  z-index: 20;
+}
+
+@keyframes screen-flash {
+  0%   { background: rgba(180, 220, 255, 0.85); opacity: 1; }
+  5%   { opacity: 0; }
+  38%  { opacity: 0; background: rgba(30, 80, 255, 0.4); }
+  42%  { opacity: 0.7; }
+  46%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+.popup--glitch {
+  animation: popup-glitch 1.6s steps(1) forwards;
+}
+
+@keyframes popup-glitch {
+  0%   { transform: translate(0, 0) skewX(0deg);    filter: none; }
+  4%   { transform: translate(-4px, 2px) skewX(-2deg); filter: hue-rotate(80deg) brightness(1.6); }
+  8%   { transform: translate(5px, -1px) skewX(1.5deg); filter: hue-rotate(200deg) brightness(0.8); }
+  13%  { transform: translate(-2px, 1px) skewX(0.5deg); filter: brightness(1.2); }
+  18%  { transform: translate(0, 0) skewX(0deg);    filter: none; }
+  40%  { transform: translate(0, 0);                filter: none; }
+  42%  { transform: translate(6px, -2px) skewX(-3deg); filter: hue-rotate(260deg) brightness(2); }
+  45%  { transform: translate(-4px, 2px) skewX(2deg);  filter: brightness(0.4); }
+  48%  { transform: translate(2px, 0)  skewX(0deg); filter: none; }
+  50%  { transform: translate(0, 0);                filter: none; }
+  74%  { transform: translate(0, 0);                filter: none; }
+  76%  { transform: translate(-3px, 0) skewX(-1deg); filter: brightness(1.5) hue-rotate(40deg); }
+  79%  { transform: translate(0, 0);                filter: none; }
+  100% { transform: translate(0, 0);                filter: none; }
+}
+
+/* Sweep scan line */
+.scan-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, rgba(100, 200, 255, 1) 40%, rgba(255, 255, 255, 0.9) 50%, rgba(100, 200, 255, 1) 60%, transparent 100%);
+  box-shadow: 0 0 12px 2px rgba(100, 200, 255, 0.8);
+  pointer-events: none;
+  animation: scan-sweep 1.5s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  z-index: 10;
+}
+
+@keyframes scan-sweep {
+  0%   { top: 0%;   opacity: 1; }
+  85%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Scrambled text */
+.glitch-text {
+  animation: none;
+  opacity: 1;
+}
+
+.corrupt-chars {
+  color: rgba(130, 200, 255, 0.95);
+  letter-spacing: 0.06em;
+  animation: corrupt-flicker 0.08s steps(1) infinite;
+}
+
+@keyframes corrupt-flicker {
+  0%   { opacity: 1; }
+  49%  { opacity: 1; }
+  50%  { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+
+.glitch-text .bracket {
+  animation: bracket-corrupt 0.12s steps(1) infinite;
+}
+
+@keyframes bracket-corrupt {
+  0%   { color: rgba(30, 120, 255, 1);  text-shadow: 0 0 12px rgba(30, 120, 255, 0.9); }
+  33%  { color: rgba(255, 60, 60, 0.9); text-shadow: 0 0 12px rgba(255, 60, 60, 0.9); }
+  66%  { color: rgba(60, 255, 120, 0.9);text-shadow: 0 0 12px rgba(60, 255, 120, 0.9); }
+  100% { color: rgba(30, 120, 255, 1);  text-shadow: 0 0 12px rgba(30, 120, 255, 0.9); }
+}
+
+/* Status label */
+.glitch-status {
+  margin-top: 12px;
+}
+
+.glitch-label {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: rgba(80, 160, 255, 0.7);
+  animation: label-blink 0.5s steps(1) infinite;
+}
+
+@keyframes label-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.2; }
+}
+
+/* Progress bar */
+.glitch-progress {
+  margin-top: 10px;
+  height: 2px;
+  background: rgba(30, 120, 255, 0.12);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.glitch-progress-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, rgba(30, 100, 255, 0.6), rgba(100, 200, 255, 1));
+  box-shadow: 0 0 8px rgba(100, 200, 255, 0.7);
+  animation: progress-fill 1.5s ease forwards;
+}
+
+@keyframes progress-fill {
+  0%   { width: 0%; }
+  15%  { width: 22%; }
+  30%  { width: 23%; }
+  45%  { width: 55%; }
+  55%  { width: 57%; }
+  70%  { width: 78%; }
+  85%  { width: 79%; }
+  100% { width: 100%; }
+}
