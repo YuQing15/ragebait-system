@@ -2,10 +2,11 @@ import { useState, useRef, useCallback } from "react";
 import "@/styles/system.css";
 
 export default function SystemPopup() {
+  const [stage, setStage] = useState(1);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [accepted, setAccepted] = useState(false);
 
   const handleMouseEnter = useCallback(() => {
+    if (stage !== 1) return;
     const btn = buttonRef.current;
     if (!btn) return;
 
@@ -24,10 +25,19 @@ export default function SystemPopup() {
     btn.style.position = "absolute";
     btn.style.left = `${randomX}px`;
     btn.style.top = `${randomY}px`;
+  }, [stage]);
+
+  const handleAccept = useCallback(() => {
+    setStage(2);
+    if (buttonRef.current) {
+      buttonRef.current.style.position = "";
+      buttonRef.current.style.left = "";
+      buttonRef.current.style.top = "";
+    }
   }, []);
 
-  const handleClick = useCallback(() => {
-    setAccepted(true);
+  const handleContinue = useCallback(() => {
+    setStage(3);
   }, []);
 
   return (
@@ -36,23 +46,44 @@ export default function SystemPopup() {
         <div className="popup-header">
           <span className="system-badge">SYSTEM</span>
         </div>
+
         <div className="popup-body">
-          <p className="system-message">
-            <span className="bracket">[SYSTEM]</span> Daily quest unlocked.
-          </p>
-          {accepted && (
-            <p className="accepted-text">Quest accepted. Good luck, Hunter.</p>
+          {stage === 1 && (
+            <p className="system-message" key="stage1">
+              <span className="bracket">[SYSTEM]</span> Daily quest unlocked.
+            </p>
+          )}
+          {stage === 2 && (
+            <p className="system-message" key="stage2">
+              <span className="bracket">[SYSTEM]</span> Hidden penalty activated.
+            </p>
+          )}
+          {stage === 3 && (
+            <>
+              <p className="system-message" key="stage3">
+                <span className="bracket">[SYSTEM]</span> Reward unavailable.
+              </p>
+              <p className="retry-text">Please try again tomorrow.</p>
+            </>
           )}
         </div>
+
         <div className="popup-footer">
-          <button
-            ref={buttonRef}
-            className="accept-btn"
-            onMouseEnter={handleMouseEnter}
-            onClick={handleClick}
-          >
-            Accept
-          </button>
+          {stage === 1 && (
+            <button
+              ref={buttonRef}
+              className="accept-btn"
+              onMouseEnter={handleMouseEnter}
+              onClick={handleAccept}
+            >
+              Accept
+            </button>
+          )}
+          {stage === 2 && (
+            <button className="accept-btn" onClick={handleContinue}>
+              Continue
+            </button>
+          )}
         </div>
       </div>
     </div>
