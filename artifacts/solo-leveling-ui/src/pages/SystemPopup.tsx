@@ -78,16 +78,18 @@ const MODERN_INSULTS = [
 ];
 
 const VICTORIAN_INSULTS = [
-  "absolute radish",
-  "overcooked noodle",
+  "Absolute Radish",
+  "Overcooked Noodle",
   "Hippopotamus",
   "Walnut",
   "Goose",
-  "dusty teapot",
+  "Dusty Teapot",
+  "Expired Potato",
 ];
 
 const SKIP_TITLES = [
   ...MODERN_INSULTS,
+  ... VICTORIAN_INSULTS,
 ];
 
 type MathQuestion = {
