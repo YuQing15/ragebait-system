@@ -101,6 +101,7 @@ export default function SystemPopup() {
   const [inputDisabled, setInputDisabled] = useState(false);
   const [stage3Status,  setStage3Status]  = useState<Stage3Status>("typing");
   const [slowpokeName,  setSlowpokeName]  = useState("");
+  const [userName,      setUserName]      = useState(""); // set from slowpoke path
 
   const inputValueRef       = useRef("");
   const corruptTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
