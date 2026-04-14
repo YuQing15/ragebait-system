@@ -1,22 +1,65 @@
 import { useState, useRef, useLayoutEffect, useCallback, useEffect } from "react";
 import "@/styles/system.css";
 
-const CORRUPT_CHARS = "!@#$%^&*<>[]{}|;:?/\\~`▓▒░█▄▀■□◆◇";
+// ── Constants ─────────────────────────────────────────────────
+const CORRUPT_CHARS  = "!@#$%^&*<>[]{}|;:?/\\~`▓▒░█▄▀■□◆◇";
 const ADMIN_PASSWORD = "hunter";
 const REWARD_NAMES   = ["Power", "Gold", "Freedom"];
-const MAX_STAGE      = 6;
+const MAX_STAGE      = 7;
 const DODGE_RADIUS   = 100;
 
-// Keyboard-adjacent replacements so corruption looks like a real typo
 const NEIGHBORS: Record<string, string> = {
   a:"s",b:"v",c:"x",d:"f",e:"r",f:"d",g:"h",h:"g",i:"u",j:"k",
   k:"j",l:"k",m:"n",n:"m",o:"p",p:"o",q:"w",r:"e",s:"a",t:"r",
   u:"y",v:"b",w:"s",x:"z",y:"t",z:"x",
 };
 
+// Type-verification phrases – each has a zero-width space (U+200B) so keyboard
+// input can never match the internal value. User physically cannot win.
+const TYPE_PHRASES = [
+  { display:"ACCESS GRANTED",      internal:"ACCESS\u200bGRANTED" },
+  { display:"SHADOW EXTRACTION",   internal:"SHADOW\u200bEXTRACTION" },
+  { display:"DUNGEON CLEAR CODE",  internal:"DUNGEON\u200bCLEAR CODE" },
+  { display:"RANK UP PROTOCOL",    internal:"RANK\u200bUP PROTOCOL" },
+  { display:"ARISE NOW HUNTER",    internal:"ARISE\u200bNOW HUNTER" },
+  { display:"GATE OVERRIDE SEVEN", internal:"GATE\u200bOVERRIDE SEVEN" },
+  { display:"MONARCH SEAL VERIFY", internal:"MONARCH\u200bSEAL VERIFY" },
+  { display:"NULL VOID CONFIRM",   internal:"NULL\u200bVOID CONFIRM" },
+  { display:"KXRT ZEPHYR ONLINE",  internal:"KXRT\u200bZEPHYR ONLINE" },
+  { display:"VORTEX SIGNAL NULL",  internal:"VORTEX\u200bSIGNAL NULL" },
+];
+
+// ── Stage 3 chaos helpers ──────────────────────────────────────
+// Aggressive whole-string corruption (for per-keystroke chaos)
+function fullCorrupt(s: string): string {
+  const out = s.split("").map(c => {
+    const r = Math.random();
+    if (r < 0.35) return CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)];
+    if (r < 0.55) return c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase();
+    return c;
+  });
+  // partial shuffle
+  for (let i = out.length - 1; i > 0; i--) {
+    if (Math.random() < 0.45) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+  }
+  return out.join("");
+}
+
+// Corruption used inside the slowpoke popup message (funny-looking, not just junk)
+function corruptForSlowpoke(s: string): string {
+  if (!s.trim()) return "ERROR_NULL_PLAYER";
+  const upper = s.toUpperCase().split("");
+  const out = upper.map(c => {
+    const r = Math.random();
+    if (r < 0.22) return CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)];
+    if (r < 0.38) return "?";
+    return c;
+  });
+  return out.sort(() => Math.random() - 0.5).join("") + "_??";
+}
+
 function randomCorrupt(len: number) {
-  return Array.from(
-    { length: len },
+  return Array.from({ length: len },
     () => CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)]
   ).join("");
 }
@@ -30,18 +73,21 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-type Stage3Status = "typing" | "validating" | "invalid" | "expired";
+// ── Types ──────────────────────────────────────────────────────
+type Stage3Status = "typing" | "validating" | "invalid" | "expired" | "slowpoke";
+type Stage6Status = "typing" | "checking" | "incorrect" | "granted" | "failed";
 
+// ══════════════════════════════════════════════════════════════
 export default function SystemPopup() {
 
   // ── Core ─────────────────────────────────────────────────────
-  const [stage, setStage]             = useState(1);
+  const [stage,       setStage]       = useState(1);
   const [isGlitching, setIsGlitching] = useState(false);
   const [corruptText, setCorruptText] = useState("");
   const glitchDoneRef = useRef<() => void>(() => {});
 
   // ── Stage 1 – proximity dodge ────────────────────────────────
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [translate,  setTranslate]  = useState({ x: 0, y: 0 });
   const buttonRef    = useRef<HTMLButtonElement>(null);
   const popupRef     = useRef<HTMLDivElement>(null);
   const naturalPos   = useRef<{ x: number; y: number } | null>(null);
@@ -50,13 +96,27 @@ export default function SystemPopup() {
   // ── Stage 2 – recalculating ──────────────────────────────────
   const [isRecalculating, setIsRecalculating] = useState(false);
 
-  // ── Stage 3 – input trap ─────────────────────────────────────
+  // ── Stage 3 – name input trap ────────────────────────────────
   const [inputValue,    setInputValue]    = useState("");
   const [inputDisabled, setInputDisabled] = useState(false);
   const [stage3Status,  setStage3Status]  = useState<Stage3Status>("typing");
-  const inputValueRef   = useRef("");                       // always-current copy
-  const corruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const submitCountRef  = useRef(0);                        // how many times submitted
+  const [slowpokeName,  setSlowpokeName]  = useState("");
+
+  const inputValueRef       = useRef("");
+  const corruptTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const submitCountRef      = useRef(0);
+  // Hidden-pass tracking refs
+  const firstKeypressAtRef  = useRef<number | null>(null);
+  const backspaceUsedRef    = useRef(false);
+  // Slowpoke refs
+  const slowpokeShownRef    = useRef(false);
+  const stage3StatusRef     = useRef<Stage3Status>("typing"); // mirror for closures
+
+  // Keep mirror in sync (called every time we update stage3Status)
+  const setS3 = useCallback((s: Stage3Status) => {
+    stage3StatusRef.current = s;
+    setStage3Status(s);
+  }, []);
 
   // ── Stage 4 – fake loading ───────────────────────────────────
   const [stage4Phase, setStage4Phase] = useState<"filling" | "stuck" | "error">("filling");
@@ -68,9 +128,17 @@ export default function SystemPopup() {
     { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 },
   ]);
 
-  // ── Stage 6 – fake-out + interactive Claim ───────────────────
-  const [stage6Phase, setStage6Phase] = useState<"granted" | "claiming" | "final">("granted");
-  const stage6DirectRef = useRef(false);
+  // ── Stage 6 – type verification ──────────────────────────────
+  const [typeInput,    setTypeInput]    = useState("");
+  const [typeStatus,   setTypeStatus]   = useState<Stage6Status>("typing");
+  const [typePhrase,   setTypePhrase]   = useState(TYPE_PHRASES[0]);
+  const [typeAttempts, setTypeAttempts] = useState(0);
+  const typeInputRef   = useRef("");
+  const typeCorruptRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Stage 7 – final fake-out ─────────────────────────────────
+  const [stage7Phase,     setStage7Phase]     = useState<"granted" | "claiming" | "final">("granted");
+  const stageFinalDirect = useRef(false);
 
   // ── Ragebait helpers ─────────────────────────────────────────
   const [pendingAction, setPendingAction] = useState(false);
@@ -101,9 +169,7 @@ export default function SystemPopup() {
     setCorruptText(randomCorrupt(24));
     const iv = setInterval(() =>
       setCorruptText(randomCorrupt(16 + Math.floor(Math.random() * 12))), 70);
-    const t = setTimeout(() => {
-      clearInterval(iv); setIsGlitching(false); glitchDoneRef.current();
-    }, 1600);
+    const t = setTimeout(() => { clearInterval(iv); setIsGlitching(false); glitchDoneRef.current(); }, 1600);
     return () => { clearInterval(iv); clearTimeout(t); };
   }, [isGlitching]);
 
@@ -114,33 +180,44 @@ export default function SystemPopup() {
     return () => clearTimeout(t);
   }, [stage]);
 
-  // Stage 3 – reset all state; only occasional lock-up (no junk interval)
+  // ── Stage 3 – aggressive name input chaos ────────────────────
   useEffect(() => {
     if (stage !== 3) return;
-    setInputValue("");
-    inputValueRef.current = "";
+
+    // Reset all state
+    setInputValue(""); inputValueRef.current = "";
     setInputDisabled(false);
-    setStage3Status("typing");
-    submitCountRef.current = 0;
+    setS3("typing");
+    submitCountRef.current    = 0;
+    firstKeypressAtRef.current  = null;
+    backspaceUsedRef.current    = false;
+    slowpokeShownRef.current    = false;
     if (corruptTimerRef.current) { clearTimeout(corruptTimerRef.current); corruptTimerRef.current = null; }
 
-    // Occasionally lock the input for 0.6 s (subtly, only when something is typed)
-    const lockIv = setInterval(() => {
-      if (inputValueRef.current.length < 3) return;
-      if (Math.random() < 0.28) {
-        setInputDisabled(true);
-        setTimeout(() => setInputDisabled(false), 650);
-      }
-    }, 4500);
+    // After 10 s of sitting here: slowpoke popup
+    const slowTimer = setTimeout(() => {
+      if (slowpokeShownRef.current) return;
+      if (stage3StatusRef.current !== "typing") return;
+      slowpokeShownRef.current = true;
+      const cur = inputValueRef.current;
+      setSlowpokeName(corruptForSlowpoke(cur));
+      setS3("slowpoke");
+      // Auto-dismiss after 5 s, reset input
+      setTimeout(() => {
+        setInputValue(""); inputValueRef.current = "";
+        setInputDisabled(false);
+        setS3("typing");
+      }, 5000);
+    }, 10000);
 
-    // Long safety fallback — shouldn't normally fire
-    const fallback = setTimeout(() => setStage(4), 30000);
+    // Safety fallback
+    const fallback = setTimeout(() => setStage(4), 60000);
+
     return () => {
-      clearInterval(lockIv);
-      clearTimeout(fallback);
+      clearTimeout(slowTimer); clearTimeout(fallback);
       if (corruptTimerRef.current) { clearTimeout(corruptTimerRef.current); corruptTimerRef.current = null; }
     };
-  }, [stage]);
+  }, [stage, setS3]);
 
   useEffect(() => {
     if (stage !== 4) return;
@@ -153,8 +230,7 @@ export default function SystemPopup() {
 
   useEffect(() => {
     if (stage !== 5) return;
-    setRewards([...REWARD_NAMES]);
-    setRewardInvalid(false);
+    setRewards([...REWARD_NAMES]); setRewardInvalid(false);
     setRewardPos([{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }]);
     const iv = setInterval(() => setRewards(prev => shuffle(prev)), 2800);
     return () => clearInterval(iv);
@@ -162,19 +238,25 @@ export default function SystemPopup() {
 
   useEffect(() => {
     if (stage !== 6) return;
-    if (stage6DirectRef.current) { stage6DirectRef.current = false; setStage6Phase("final"); return; }
-    setStage6Phase("granted");
+    const idx = Math.floor(Math.random() * TYPE_PHRASES.length);
+    setTypePhrase(TYPE_PHRASES[idx]);
+    setTypeInput(""); typeInputRef.current = "";
+    setTypeStatus("typing"); setTypeAttempts(0);
+    if (typeCorruptRef.current) { clearTimeout(typeCorruptRef.current); typeCorruptRef.current = null; }
   }, [stage]);
 
-  // Cursor interference on stages 2–5
   useEffect(() => {
-    if (stage < 2 || stage > 5) return;
+    if (stage !== 7) return;
+    if (stageFinalDirect.current) { stageFinalDirect.current = false; setStage7Phase("final"); return; }
+    setStage7Phase("granted");
+  }, [stage]);
+
+  // Cursor interference on stages 2–6
+  useEffect(() => {
+    if (stage < 2 || stage > 6) return;
     setBtnJammed(false);
     const iv = setInterval(() => {
-      if (Math.random() < 0.45) {
-        setBtnJammed(true);
-        setTimeout(() => setBtnJammed(false), 420);
-      }
+      if (Math.random() < 0.45) { setBtnJammed(true); setTimeout(() => setBtnJammed(false), 420); }
     }, 3800);
     return () => { clearInterval(iv); setBtnJammed(false); };
   }, [stage]);
@@ -198,6 +280,7 @@ export default function SystemPopup() {
   // Handlers
   // ────────────────────────────────────────────────────────────
 
+  // Stage 1 – proximity dodge
   const handlePopupMouseMove = useCallback((e: React.MouseEvent) => {
     if (stage !== 1 || isGlitching || dodgeCoolRef.current) return;
     const btn = buttonRef.current, popup = popupRef.current;
@@ -224,92 +307,113 @@ export default function SystemPopup() {
     setIsGlitching(true);
   }, []);
 
-  // Stage 3 – keystroke-level sabotage
+  // ── Stage 3 – aggressive per-keystroke chaos ──────────────────
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (stage3Status !== "typing") return;
-
-    // Cancel any pending corruption so it doesn't fire on old value
-    if (corruptTimerRef.current) { clearTimeout(corruptTimerRef.current); corruptTimerRef.current = null; }
+    if (stage3StatusRef.current !== "typing") return;
 
     const newVal = e.target.value;
-    const r = Math.random();
 
-    // Helper: commit value and optionally schedule near-completion corruption
-    const commit = (v: string) => {
-      setInputValue(v);
-      inputValueRef.current = v;
+    // Track first keypress for hidden-pass timing
+    if (!firstKeypressAtRef.current && newVal.length > 0)
+      firstKeypressAtRef.current = Date.now();
 
-      // Only corrupt when they have 5+ characters (near completion)
-      if (v.length >= 5 && Math.random() < 0.24) {
-        corruptTimerRef.current = setTimeout(() => {
-          corruptTimerRef.current = null;
-          const cur = inputValueRef.current;
-          if (!cur.length) return;
+    // Commit the new value first so user sees their char briefly
+    setInputValue(newVal);
+    inputValueRef.current = newVal;
 
-          if (Math.random() < 0.52) {
-            // Delete the last character they just typed
-            const next = cur.slice(0, -1);
-            setInputValue(next);
-            inputValueRef.current = next;
-          } else {
-            // Replace last char with an adjacent keyboard key (looks like a real typo)
-            const last = cur[cur.length - 1].toLowerCase();
-            const replacement = NEIGHBORS[last] ?? String.fromCharCode(((last.charCodeAt(0) - 96) % 26) + 97);
-            const next = cur.slice(0, -1) + replacement;
-            setInputValue(next);
-            inputValueRef.current = next;
-          }
-        }, 180 + Math.random() * 230); // strikes 180–410 ms after the keypress
-      }
-    };
+    // No chaos on the very first character — give false hope
+    if (newVal.length < 2) return;
 
-    if (r < 0.04) {
-      // Silently swallow this keystroke — character never appears (keyboard skip)
-      return;
-    } else if (r < 0.13) {
-      // Lag: character appears 80–180 ms late
-      setTimeout(() => commit(newVal), 80 + Math.random() * 100);
-    } else {
-      commit(newVal);
+    // 85% chance of chaos after a short delay
+    if (Math.random() > 0.15) {
+      // Cancel any previous pending chaos and schedule fresh one
+      if (corruptTimerRef.current) clearTimeout(corruptTimerRef.current);
+      const delay = 55 + Math.random() * 110; // 55–165 ms
+
+      corruptTimerRef.current = setTimeout(() => {
+        corruptTimerRef.current = null;
+        const cur = inputValueRef.current;
+        if (!cur.length) return;
+
+        const r = Math.random();
+        let next: string;
+
+        if (r < 0.30) {
+          // Delete one letter at a random position
+          const pos = Math.floor(Math.random() * cur.length);
+          next = cur.slice(0, pos) + cur.slice(pos + 1);
+        } else if (r < 0.44) {
+          // Wipe everything
+          next = "";
+        } else if (r < 0.64) {
+          // Replace one letter with junk or a random char
+          const pos = Math.floor(Math.random() * cur.length);
+          const rep = Math.random() < 0.55
+            ? CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)]
+            : String.fromCharCode(97 + Math.floor(Math.random() * 26));
+          next = cur.slice(0, pos) + rep + cur.slice(pos + 1);
+        } else if (r < 0.82) {
+          // Corrupt the entire name with junk + case flips
+          next = fullCorrupt(cur);
+        } else {
+          // Scramble letter order
+          next = cur.split("").sort(() => Math.random() - 0.5).join("");
+        }
+
+        setInputValue(next);
+        inputValueRef.current = next;
+      }, delay);
     }
-  }, [stage3Status]);
+  }, []);
 
-  // Stage 3 – submit flow: validating → invalid → (expire 30%) | advance (70%)
+  // Track backspace for hidden-pass check
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace") backspaceUsedRef.current = true;
+    if (e.key === "Enter") handleNameSubmit();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Stage 3 – submit: check hidden pass or show rejection
   const handleNameSubmit = useCallback(() => {
-    if (stage3Status !== "typing") return;
+    if (stage3StatusRef.current !== "typing") return;
     if (corruptTimerRef.current) { clearTimeout(corruptTimerRef.current); corruptTimerRef.current = null; }
 
+    // Hidden pass: typed within 0.5 s of first keypress AND no backspace
+    const timeSinceFirst = firstKeypressAtRef.current ? Date.now() - firstKeypressAtRef.current : Infinity;
+    if (timeSinceFirst < 500 && !backspaceUsedRef.current && inputValueRef.current.length > 0) {
+      // System grudgingly advances
+      setInputDisabled(true);
+      setS3("validating");
+      setTimeout(() => setStage(4), 900);
+      return;
+    }
+
+    // Standard rejection flow
     setInputDisabled(true);
-    setStage3Status("validating");
+    setS3("validating");
+    submitCountRef.current += 1;
 
     setTimeout(() => {
-      setStage3Status("invalid");
-      submitCountRef.current += 1;
-
-      // After 2 failed attempts always advance; otherwise 35% chance to expire
+      setS3("invalid");
       const shouldExpire = submitCountRef.current < 3 && Math.random() < 0.35;
 
       setTimeout(() => {
         if (shouldExpire) {
-          setStage3Status("expired");
-          setInputValue("");
-          inputValueRef.current = "";
-          // After 2 s of "Session expired", reset to typing so user tries again
-          setTimeout(() => { setInputDisabled(false); setStage3Status("typing"); }, 2000);
+          setS3("expired");
+          setInputValue(""); inputValueRef.current = "";
+          setTimeout(() => { setInputDisabled(false); setS3("typing"); }, 2000);
         } else {
           setStage(4);
         }
       }, 1400);
     }, 1100);
-  }, [stage3Status]);
+  }, [setS3]);
 
-  // Stage 5
+  // Stage 5 – reward buttons
   const handleRewardHover = useCallback((idx: number) => {
     if (rewardInvalid) return;
     setRewardPos(prev => {
-      const next = [...prev];
-      next[idx] = { x: (Math.random() - 0.5) * 50, y: (Math.random() - 0.5) * 22 };
-      return next;
+      const n = [...prev]; n[idx] = { x: (Math.random() - 0.5) * 50, y: (Math.random() - 0.5) * 22 }; return n;
     });
   }, [rewardInvalid]);
 
@@ -319,18 +423,69 @@ export default function SystemPopup() {
     setTimeout(() => setStage(6), 1400);
   }, [rewardInvalid]);
 
-  // Stage 6 – Claim
+  // Stage 6 – type input with corruption
+  const handleTypeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (typeStatus !== "typing") return;
+    if (typeCorruptRef.current) { clearTimeout(typeCorruptRef.current); typeCorruptRef.current = null; }
+    const newVal = e.target.value;
+    const r = Math.random();
+    const commit = (v: string) => {
+      setTypeInput(v); typeInputRef.current = v;
+      if (v.length >= 4 && Math.random() < 0.20) {
+        typeCorruptRef.current = setTimeout(() => {
+          typeCorruptRef.current = null;
+          const cur = typeInputRef.current;
+          if (!cur.length) return;
+          if (Math.random() < 0.55) {
+            const next = cur.slice(0, -1); setTypeInput(next); typeInputRef.current = next;
+          } else {
+            const last = cur[cur.length - 1];
+            const lower = last.toLowerCase();
+            const rep = NEIGHBORS[lower] ?? "x";
+            const replaced = last === last.toUpperCase() ? rep.toUpperCase() : rep;
+            const next = cur.slice(0, -1) + replaced; setTypeInput(next); typeInputRef.current = next;
+          }
+        }, 150 + Math.random() * 200);
+      }
+    };
+    if (r < 0.04) return;
+    else if (r < 0.12) setTimeout(() => commit(newVal), 70 + Math.random() * 90);
+    else commit(newVal);
+  }, [typeStatus]);
+
+  // Stage 6 – submit: always incorrect; 3rd attempt → fake success → fail
+  const handleTypeSubmit = useCallback(() => {
+    if (typeStatus !== "typing") return;
+    if (typeCorruptRef.current) { clearTimeout(typeCorruptRef.current); typeCorruptRef.current = null; }
+    setTypeStatus("checking");
+    const newAttempts = typeAttempts + 1;
+    setTypeAttempts(newAttempts);
+    setTimeout(() => {
+      if (newAttempts >= 3) {
+        setTypeStatus("granted");
+        setTimeout(() => {
+          setTypeStatus("failed");
+          setTimeout(() => setStage(7), 1800);
+        }, 750);
+      } else {
+        setTypeStatus("incorrect");
+        setTimeout(() => { setTypeInput(""); typeInputRef.current = ""; setTypeStatus("typing"); }, 1600);
+      }
+    }, 900);
+  }, [typeStatus, typeAttempts]);
+
+  // Stage 7 – Claim
   const handleClaim = useCallback(() => {
-    if (stage6Phase !== "granted" || pendingAction || btnJammed) return;
+    if (stage7Phase !== "granted" || pendingAction || btnJammed) return;
     setPendingAction(true);
     setTimeout(() => {
       setPendingAction(false);
-      setStage6Phase("claiming");
-      setTimeout(() => setStage6Phase("final"), 420);
+      setStage7Phase("claiming");
+      setTimeout(() => setStage7Phase("final"), 420);
     }, 650);
-  }, [stage6Phase, pendingAction, btnJammed]);
+  }, [stage7Phase, pendingAction, btnJammed]);
 
-  // Admin – auth
+  // ── Admin ──────────────────────────────────────────────────────
   const handleAdminTrigger = useCallback(() => {
     setAdminOpen(true); setAdminPassword(""); setAdminError(false);
   }, []);
@@ -347,17 +502,17 @@ export default function SystemPopup() {
 
   const handleSkipNext = useCallback(() => {
     setIsGlitching(false); setPendingAction(false); setBtnJammed(false);
-    setStage(prev => { const n = Math.min(prev + 1, MAX_STAGE); if (n === MAX_STAGE) stage6DirectRef.current = true; return n; });
+    setStage(prev => { const n = Math.min(prev + 1, MAX_STAGE); if (n === MAX_STAGE) stageFinalDirect.current = true; return n; });
   }, []);
 
   const handleSkipToFinal = useCallback(() => {
     setIsGlitching(false); setPendingAction(false); setBtnJammed(false);
-    stage6DirectRef.current = true; setStage(MAX_STAGE); setAdminOpen(false);
+    stageFinalDirect.current = true; setStage(MAX_STAGE); setAdminOpen(false);
   }, []);
 
   const handleJumpToStage = useCallback((s: number) => {
     setIsGlitching(false); setPendingAction(false); setBtnJammed(false);
-    if (s === MAX_STAGE) stage6DirectRef.current = true;
+    if (s === MAX_STAGE) stageFinalDirect.current = true;
     setStage(s); setAdminJumpOpen(false); setAdminOpen(false);
   }, []);
 
@@ -374,7 +529,8 @@ export default function SystemPopup() {
   // ────────────────────────────────────────────────────────────
   // Render
   // ────────────────────────────────────────────────────────────
-  const bodyFlicker = stage === 6 && stage6Phase === "claiming";
+
+  const bodyFlicker = stage === 7 && stage7Phase === "claiming";
 
   return (
     <div className={`screen${isGlitching ? " screen--flash" : ""}`}
@@ -382,6 +538,7 @@ export default function SystemPopup() {
 
       <div className="admin-trigger" onClick={handleAdminTrigger} aria-hidden="true" />
 
+      {/* ── Admin overlay ── */}
       {adminOpen && (
         <div className="admin-popup">
           <div className="admin-popup-header">
@@ -410,11 +567,15 @@ export default function SystemPopup() {
               <div className="admin-controls">
                 <button className="admin-btn admin-btn--full" onClick={handleSkipNext} disabled={stage >= MAX_STAGE}>Skip to Next Stage</button>
                 <button className="admin-btn admin-btn--full" onClick={handleSkipToFinal} disabled={stage >= MAX_STAGE}>Skip to Final Stage</button>
-                <button className="admin-btn admin-btn--full" onClick={() => setAdminJumpOpen(o => !o)}>Jump to Any Stage {adminJumpOpen ? "▲" : "▼"}</button>
+                <button className="admin-btn admin-btn--full" onClick={() => setAdminJumpOpen(o => !o)}>
+                  Jump to Any Stage {adminJumpOpen ? "▲" : "▼"}
+                </button>
                 {adminJumpOpen && (
                   <div className="admin-jump-grid">
                     {Array.from({ length: MAX_STAGE }, (_, i) => i + 1).map(s => (
-                      <button key={s} className={`admin-jump-btn${s === stage ? " admin-jump-btn--active" : ""}`} onClick={() => handleJumpToStage(s)}>{s}</button>
+                      <button key={s}
+                        className={`admin-jump-btn${s === stage ? " admin-jump-btn--active" : ""}`}
+                        onClick={() => handleJumpToStage(s)}>{s}</button>
                     ))}
                   </div>
                 )}
@@ -426,21 +587,22 @@ export default function SystemPopup() {
         </div>
       )}
 
+      {/* ── Main popup ── */}
       <div className={`popup${isGlitching ? " popup--glitch" : ""}`} ref={popupRef}>
         {isGlitching && <div className="scan-bar" />}
 
-        <div className="popup-header">
-          <span className="system-badge">SYSTEM</span>
-        </div>
+        <div className="popup-header"><span className="system-badge">SYSTEM</span></div>
 
         <div className={`popup-body${bodyFlicker ? " popup-body--flicker" : ""}`}>
 
+          {/* Stage 1 */}
           {stage === 1 && !isGlitching && (
             <p className="system-message" key="s1">
               <span className="bracket">[SYSTEM]</span> Daily quest unlocked.
             </p>
           )}
 
+          {/* Glitch */}
           {isGlitching && (
             <>
               <p className="system-message glitch-text" key="glitch">
@@ -452,42 +614,37 @@ export default function SystemPopup() {
             </>
           )}
 
+          {/* Stage 2 */}
           {stage === 2 && !isGlitching && isRecalculating && (
             <p className="system-message recalc-msg" key="s2a">
               <span className="bracket">[SYSTEM]</span> Recalculating mission difficulty...
             </p>
           )}
-
           {stage === 2 && !isGlitching && !isRecalculating && (
             <p className="system-message" key="s2b">
               <span className="bracket">[SYSTEM]</span> Hidden penalty activated.
             </p>
           )}
 
-          {/* ── Stage 3 – input trap ── */}
+          {/* ──── Stage 3 – aggressive name input ──── */}
           {stage === 3 && (
             <div key="s3" className="stage-block">
 
-              {/* Header message changes per sub-state */}
-              {stage3Status === "typing" && (
+              {/* Header label */}
+              {stage3Status !== "slowpoke" && (
                 <p className="system-message">
-                  <span className="bracket">[SYSTEM]</span> Identity verification required.
+                  {stage3Status === "validating"
+                    ? <><span className="bracket">[SYSTEM]</span> Validating...</>
+                    : <><span className="bracket">[SYSTEM]</span> Identity verification required.</>
+                  }
                 </p>
               )}
-              {stage3Status === "validating" && (
-                <p className="system-message recalc-msg">
-                  <span className="bracket">[SYSTEM]</span> Validating...
-                </p>
-              )}
+
+              {/* Error messages */}
               {stage3Status === "invalid" && (
-                <>
-                  <p className="system-message">
-                    <span className="bracket">[SYSTEM]</span> Identity verification required.
-                  </p>
-                  <p className="s3-status-msg s3-status-msg--error">
-                    <span className="bracket-red">[SYSTEM]</span> Name format invalid.
-                  </p>
-                </>
+                <p className="s3-status-msg s3-status-msg--error">
+                  <span className="bracket-red">[SYSTEM]</span> Invalid name input.
+                </p>
               )}
               {stage3Status === "expired" && (
                 <p className="s3-status-msg s3-status-msg--error">
@@ -495,95 +652,149 @@ export default function SystemPopup() {
                 </p>
               )}
 
-              {/* Input field only during "typing" */}
+              {/* ── Slowpoke popup ── */}
+              {stage3Status === "slowpoke" && (
+                <div className="slowpoke-wrap">
+                  <p className="system-message">
+                    <span className="bracket">[SYSTEM]</span> Identity verification required.
+                  </p>
+                  <div className="slowpoke-box">
+                    <div className="slowpoke-cat-col">
+                      <span className="slowpoke-cat" aria-hidden="true">/ᐠ •ヮ• ᐟ\ﾉ</span>
+                      <span className="slowpoke-zzz">z z z</span>
+                    </div>
+                    <p className="slowpoke-msg">
+                      "Damn, you type so slow that I thought about taking a nap while
+                      waiting for you to finish typing your name... but oh well,
+                      welcome back,&nbsp;<span className="slowpoke-name">{slowpokeName}</span>,
+                      I guess."
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Input – only when typing */}
               {stage3Status === "typing" && (
                 <div className="name-input-group">
                   <label className="name-label">&gt; Enter your name:</label>
-                  <input
-                    className="name-input"
-                    type="text"
+                  <input className="name-input" type="text"
                     value={inputValue}
                     disabled={inputDisabled}
                     placeholder={inputDisabled ? "[ INPUT LOCKED ]" : ""}
                     onChange={handleInputChange}
-                    onKeyDown={e => { if (e.key === "Enter") handleNameSubmit(); }}
+                    onKeyDown={handleInputKeyDown}
                     maxLength={40}
-                    autoFocus
-                  />
-                  {inputDisabled && (
-                    <p className="input-warning">&gt; INPUT TEMPORARILY DISABLED</p>
-                  )}
+                    autoFocus />
+                  {inputDisabled && <p className="input-warning">&gt; INPUT TEMPORARILY DISABLED</p>}
                 </div>
               )}
             </div>
           )}
 
+          {/* Stage 4 */}
           {stage === 4 && (
             <div key="s4" className="stage-block">
               <p className="system-message">
                 <span className="bracket">[SYSTEM]</span>{" "}
                 {stage4Phase === "error" ? "Unexpected error occurred." : "Processing request..."}
               </p>
-              <div className="fake-bar-wrap">
-                <div className={`fake-bar fake-bar--${stage4Phase}`} />
-              </div>
+              <div className="fake-bar-wrap"><div className={`fake-bar fake-bar--${stage4Phase}`} /></div>
               <p className={`bar-pct${stage4Phase === "error" ? " bar-pct--error" : ""}`}>
                 {stage4Phase === "error" ? "ERR_0x4F2A" : stage4Phase === "stuck" ? "99%" : ""}
               </p>
             </div>
           )}
 
+          {/* Stage 5 */}
           {stage === 5 && (
             <div key="s5" className="stage-block">
-              <p className="system-message">
-                <span className="bracket">[SYSTEM]</span> Select your reward.
-              </p>
+              <p className="system-message"><span className="bracket">[SYSTEM]</span> Select your reward.</p>
               {rewardInvalid ? (
-                <p className="invalid-msg">
-                  <span className="bracket-red">[SYSTEM]</span> Choice invalid.
-                </p>
+                <p className="invalid-msg"><span className="bracket-red">[SYSTEM]</span> Choice invalid.</p>
               ) : (
                 <div className="reward-btns">
                   {rewards.map((name, idx) => (
                     <button key={name} className="reward-btn"
                       style={{ transform: `translate(${rewardPos[idx].x}px,${rewardPos[idx].y}px)` }}
                       onMouseEnter={() => handleRewardHover(idx)}
-                      onClick={handleRewardClick}>
-                      {name}
-                    </button>
+                      onClick={handleRewardClick}>{name}</button>
                   ))}
                 </div>
               )}
             </div>
           )}
 
+          {/* Stage 6 – type verification */}
           {stage === 6 && (
             <div key="s6" className="stage-block">
-              {(stage6Phase === "granted" || stage6Phase === "claiming") && (
+              {(typeStatus === "typing" || typeStatus === "incorrect") && (
+                <>
+                  <p className="system-message">
+                    <span className="bracket">[SYSTEM]</span> Type the following to proceed:
+                  </p>
+                  <div className="type-phrase-box">
+                    <span className="type-phrase">{typePhrase.display}</span>
+                  </div>
+                </>
+              )}
+              {typeStatus === "incorrect" && (
+                <p className="s3-status-msg s3-status-msg--error">
+                  <span className="bracket-red">[SYSTEM]</span> 1 character incorrect.
+                </p>
+              )}
+              {typeStatus === "typing" && (
+                <div className="name-input-group" style={{ marginTop: 10 }}>
+                  <input className="name-input" type="text" value={typeInput}
+                    onChange={handleTypeInputChange}
+                    onKeyDown={e => { if (e.key === "Enter") handleTypeSubmit(); }}
+                    placeholder="Type here..." autoFocus />
+                </div>
+              )}
+              {typeStatus === "checking" && (
+                <p className="system-message recalc-msg">
+                  <span className="bracket">[SYSTEM]</span> Checking...
+                </p>
+              )}
+              {typeStatus === "granted" && (
+                <p className="system-message type-granted-msg">
+                  <span className="bracket-green">[SYSTEM]</span> Access granted.
+                </p>
+              )}
+              {typeStatus === "failed" && (
+                <p className="s3-status-msg s3-status-msg--error">
+                  <span className="bracket-red">[SYSTEM]</span> Verification failed.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Stage 7 – final fake-out */}
+          {stage === 7 && (
+            <div key="s7" className="stage-block">
+              {(stage7Phase === "granted" || stage7Phase === "claiming") && (
                 <p className="system-message reward-granted-msg">
                   <span className="bracket-green">[SYSTEM]</span> Reward granted.
                 </p>
               )}
-              {stage6Phase === "final" && (
+              {stage7Phase === "final" && (
                 <>
                   <p className="system-message">
-                    <span className="bracket">[SYSTEM]</span> HAHA You got tricked. There is no reward.
+                    <span className="bracket">[SYSTEM]</span> Reward unavailable.
                   </p>
-                  <p className="retry-text">Hope you got ragebaited ;P.</p>
+                  <p className="retry-text">Please try again tomorrow.</p>
                 </>
               )}
             </div>
           )}
+
         </div>
 
-        {/* Footer buttons */}
+        {/* ── Footer buttons ── */}
         <div className="popup-footer">
           {stage === 1 && !isGlitching && (
             <button ref={buttonRef} className="accept-btn accept-btn--dodge"
               style={{ transform: `translate(${translate.x}px,${translate.y}px)` }}
-              onClick={handleAccept}>
-              Accept
-            </button>
+              onClick={handleAccept}>Accept</button>
           )}
 
           {stage === 2 && !isGlitching && !isRecalculating && (
@@ -595,21 +806,26 @@ export default function SystemPopup() {
             </button>
           )}
 
-          {/* Stage 3 submit – only shown while user can type */}
           {stage === 3 && stage3Status === "typing" && (
             <button
               className={`accept-btn${btnJammed ? " accept-btn--jammed" : ""}`}
-              onClick={handleNameSubmit}
-              disabled={btnJammed}>
+              onClick={handleNameSubmit} disabled={btnJammed}>
               Submit
             </button>
           )}
 
-          {stage === 6 && stage6Phase === "granted" && (
+          {stage === 6 && typeStatus === "typing" && (
+            <button
+              className={`accept-btn${btnJammed ? " accept-btn--jammed" : ""}`}
+              onClick={handleTypeSubmit} disabled={btnJammed}>
+              Submit
+            </button>
+          )}
+
+          {stage === 7 && stage7Phase === "granted" && (
             <button
               className={`accept-btn accept-btn--granted${pendingAction ? " accept-btn--pending" : ""}${btnJammed ? " accept-btn--jammed" : ""}`}
-              onClick={handleClaim}
-              disabled={pendingAction || btnJammed}>
+              onClick={handleClaim} disabled={pendingAction || btnJammed}>
               {pendingAction ? "PROCESSING..." : "Claim"}
             </button>
           )}

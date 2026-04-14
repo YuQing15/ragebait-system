@@ -1,0 +1,61 @@
+Keep the current design and styling exactly the same.
+Do not redesign the UI.
+
+Greatly enhance the "Enter your name" stage and make it much more ragebait, dramatic, and funny.
+
+Name verification stage requirements:
+
+General behaviour:
+- The system should heavily interfere with the input box while the user is typing
+- Every time the user enters a letter, randomly do one of the following:
+  - delete one letter
+  - delete the entire current input
+  - replace one letter with another random letter
+  - dramatically change the whole entered name into a corrupted or completely different version
+  - scramble the order of the letters
+- Keep this behaviour aggressive and noticeable
+
+Progression logic:
+- The system should keep changing, rotating, and ragebaiting the entered name repeatedly
+- Even if the user manages to type their name very quickly, the system should still usually reject it
+
+Fake rejection:
+- If the user types their name within 0.5 seconds, show:
+  "[SYSTEM] Validating..."
+- Then still show:
+  "[SYSTEM] Invalid name input."
+- Force the user to go through the process again
+
+Hidden actual pass condition:
+- The only way to truly pass the name verification stage is if all of the following are true:
+  1. the user enters their full name within 0.5 seconds
+  2. the name uses exact original casing
+  3. the user does not use backspace at all
+
+This hidden condition should not be revealed to the user.
+
+Slow typing ragebait:
+- If the user has been on the name stage for more than 10 seconds:
+  - scramble or corrupt whatever they have currently typed in the input box
+  - use that corrupted/scrambled name in a special ragebait popup message
+
+Show this exact funny message:
+"Damn, you type so slow that I thought about taking a nap while waiting for you to finish typing your name... but oh well, welcome back, [CORRUPTED_NAME], I guess."
+
+Animation for the slow typing popup:
+- Add a cute extra animation to this moment
+- Either:
+  - a small floating system pet yawning
+  OR
+  - a separate small popup with a cute cat floating around the message
+- Keep it consistent with the current system style
+- The cat/pet should feel playful and teasing, not out of place
+
+Extra style/behaviour:
+- Keep all transitions smooth and dramatic
+- Make the system feel like it is actively mocking the user
+- Preserve the current Solo Leveling-style dark glowing system aesthetic
+
+Only extend the current logic.
+Do not rebuild the app.
+Do not redesign the interface.
