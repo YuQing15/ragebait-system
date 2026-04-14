@@ -743,6 +743,34 @@
   text-shadow: 0 0 12px rgba(255, 60, 60, 0.85);
 }
 
+/* ─── STAGE 6 – TYPE VERIFICATION ───────────────────────────── */
+
+.type-phrase-box {
+  margin: 14px 0 4px;
+  padding: 11px 16px;
+  background: rgba(20, 50, 90, 0.45);
+  border: 1px solid rgba(60, 130, 210, 0.40);
+  border-radius: 2px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.type-phrase {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(170, 215, 255, 0.95);
+  text-shadow: 0 0 14px rgba(90, 170, 255, 0.55);
+  letter-spacing: 0.18em;
+}
+
+/* "Access granted." flash – brief green before being replaced */
+.type-granted-msg {
+  animation: textAppear 0.18s ease forwards;
+  color: rgba(100, 220, 140, 0.95) !important;
+  text-shadow: 0 0 14px rgba(60, 200, 100, 0.55) !important;
+}
+
 /* ─── STAGE 6 – FAKE-OUT + FLICKER ──────────────────────────── */
 
 .reward-granted-msg {

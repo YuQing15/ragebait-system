@@ -567,9 +567,9 @@ export default function SystemPopup() {
               {stage6Phase === "final" && (
                 <>
                   <p className="system-message">
-                    <span className="bracket">[SYSTEM]</span> Reward unavailable.
+                    <span className="bracket">[SYSTEM]</span> HAHA You got tricked. There is no reward.
                   </p>
-                  <p className="retry-text">Please try again tomorrow.</p>
+                  <p className="retry-text">Hope you got ragebaited ;P.</p>
                 </>
               )}
             </div>
