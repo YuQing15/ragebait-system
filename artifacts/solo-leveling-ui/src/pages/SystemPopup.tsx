@@ -1520,7 +1520,7 @@ export default function SystemPopup() {
                     <span className="bracket">[SYSTEM]</span> HAHA You got
                     tricked. There is no reward.
                   </p>
-                  <p className="retry-text">Hope you got ragebaited ;P.</p>
+                  <p className="retry-text">Hope you got ragebaited (  ̗  ̗𓂁𓂄  ‿  ̫𓂁𓂄  ̗  ̗).</p>
                 </>
               )}
             </div>
