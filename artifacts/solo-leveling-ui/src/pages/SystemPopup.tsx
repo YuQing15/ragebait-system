@@ -11,7 +11,6 @@ const CORRUPT_CHARS = "!@#$%^&*<>[]{}|;:?/\\~`▓▒░█▄▀■□◆◇";
 const ADMIN_PASSWORD = "hunter";
 const MAX_STAGE = 7;
 const DODGE_RADIUS = 100;
-const [stage5Mode, setStage5Mode] = useState<"math" | "skip">("math");
 const NEIGHBORS: Record<string, string> = {
   a: "s",
   b: "v",
@@ -79,21 +78,16 @@ const MODERN_INSULTS = [
 ];
 
 const VICTORIAN_INSULTS = [
-  "Feeble-Minded Wretch",
-  "Dullard",
-  "Imbecilic Creature",
-  "Hopeless Simpleton",
-  "Pathetic Degenerate",
-  "Laughable Specimen",
-  "Unremarkable Fool",
-  "Cognitively Deficient Being",
-  "Miserable Halfwit",
-  "Tragic Buffoon",
+  "absolute radish",
+  "overcooked noodle",
+  "Hippopotamus",
+  "Walnut",
+  "Goose",
+  "dusty teapot",
 ];
 
 const SKIP_TITLES = [
   ...MODERN_INSULTS,
-  ...VICTORIAN_INSULTS,
 ];
 
 type MathQuestion = {
@@ -280,6 +274,7 @@ export default function SystemPopup() {
   const [isGlitching, setIsGlitching] = useState(false);
   const [corruptText, setCorruptText] = useState("");
   const glitchDoneRef = useRef<() => void>(() => {});
+  const [stage5Mode, setStage5Mode] = useState<"math" | "skip">("math");
 
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -887,13 +882,11 @@ export default function SystemPopup() {
   const handleSkipMathStage = useCallback(() => {
     setAssignedTitle(getRandomTitle());
     setStage5Mode("skip");
-
-    const idx = Math.floor(Math.random() * SKIP_TITLES.length);
-    setAssignedTitle(SKIP_TITLES[idx]);
   }, []);
 
   const handleSkipPopupNext = useCallback(() => {
     setSkipPopupOpen(false);
+    setStage5Mode("math");
     setStage(6);
   }, []);
 
@@ -1061,6 +1054,7 @@ export default function SystemPopup() {
     setSlowpokeName("");
     setAssignedTitle(null);
     setSkipPopupOpen(false);
+    setStage5Mode("math");
   }, []);
 
   const bodyFlicker = stage === 7 && stage7Phase === "claiming";
@@ -1068,15 +1062,34 @@ export default function SystemPopup() {
   const displayName = assignedTitle ? `${baseName} the ${assignedTitle}` : baseName;
 
   return (
-    <div
-      className={`screen${isGlitching ? " screen--flash" : ""}`}
-      onMouseMove={handlePopupMouseMove}
-    >
       <div
-        className="admin-trigger"
-        onClick={handleAdminTrigger}
-        aria-hidden="true"
-      />
+        className={`screen${isGlitching ? " screen--flash" : ""}`}
+        onMouseMove={handlePopupMouseMove}
+      >
+        <div className="floating-cat floating-cat--one" aria-hidden="true">
+          /ᐠ - ˕ -マ
+        </div>
+        <div className="floating-cat floating-cat--two" aria-hidden="true">
+          ₍^. .^₎⟆
+        </div>
+
+        <div className="cat-sparkle cat-sparkle--one" aria-hidden="true">Err ⃝or⃟⃤
+      </div>
+        <div className="cat-sparkle cat-sparkle--two" aria-hidden="true">✧</div>
+        <div className="cat-sparkle cat-sparkle--three" aria-hidden="true">⋆</div>
+
+        <div className="system-orb system-orb--one" aria-hidden="true" />
+        <div className="system-orb system-orb--two" aria-hidden="true" />
+
+        <div className="data-particle data-particle--one" aria-hidden="true">01</div>
+        <div className="data-particle data-particle--two" aria-hidden="true">◇</div>
+        <div className="data-particle data-particle--three" aria-hidden="true">Х̶̿̀͊̍̈́͑̓̈́̃̆́</div>
+
+        <div
+          className="admin-trigger"
+          onClick={handleAdminTrigger}
+          aria-hidden="true"
+        />
 
       {adminOpen && (
         <div className="admin-popup">
