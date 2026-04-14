@@ -268,7 +268,9 @@ export default function SystemPopup() {
   const [corruptText, setCorruptText] = useState("");
   const glitchDoneRef = useRef<() => void>(() => {});
   const [stage5Mode, setStage5Mode] = useState<"math" | "skip">("math");
-
+  const [spiritPos, setSpiritPos] = useState({ x: 220, y: -10 });
+  const [isDraggingSpirit, setIsDraggingSpirit] = useState(false);
+  
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -292,6 +294,10 @@ export default function SystemPopup() {
   const stage3StatusRef = useRef<Stage3Status>("typing");
   const [nameTimer, setNameTimer] = useState(3);
   const nameTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [eyeVisible, setEyeVisible] = useState(false);
+  const [eyeIntroActive, setEyeIntroActive] = useState(false);
+  const [eyeArrivalGlitch, setEyeArrivalGlitch] = useState(false);
 
   const setS3 = useCallback((s: Stage3Status) => {
     stage3StatusRef.current = s;
@@ -467,6 +473,37 @@ export default function SystemPopup() {
     };
   }, [stage]);
 
+  useEffect(() => {
+    if (stage !== 5) {
+      setEyeVisible(false);
+      setEyeIntroActive(false);
+      setEyeArrivalGlitch(false);
+      return;
+    }
+
+    setEyeVisible(false);
+    setEyeIntroActive(true);
+    setEyeArrivalGlitch(true);
+
+    const glitchTimer = setTimeout(() => {
+      setEyeVisible(true);
+    }, 1100);
+
+    const glitchEndTimer = setTimeout(() => {
+      setEyeArrivalGlitch(false);
+    }, 1800);
+
+    const introEndTimer = setTimeout(() => {
+      setEyeIntroActive(false);
+    }, 5000);
+
+    return () => {
+      clearTimeout(glitchTimer);
+      clearTimeout(glitchEndTimer);
+      clearTimeout(introEndTimer);
+    };
+  }, [stage]);
+  
   useEffect(() => {
     if (stage !== 5) return;
 
@@ -1050,15 +1087,53 @@ export default function SystemPopup() {
     setStage5Mode("math");
   }, []);
 
+  const handleSpiritMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDraggingSpirit(true);
+
+      spiritDragOffsetRef.current = {
+        x: e.clientX - spiritPos.x,
+        y: e.clientY - spiritPos.y,
+      };
+    },
+    [spiritPos],
+  );
+
+  useEffect(() => {
+    if (!isDraggingSpirit) return;
+
+    const handleMove = (e: MouseEvent) => {
+      setSpiritPos({
+        x: e.clientX - spiritDragOffsetRef.current.x,
+        y: e.clientY - spiritDragOffsetRef.current.y,
+      });
+    };
+
+    const handleUp = () => {
+      setIsDraggingSpirit(false);
+    };
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [isDraggingSpirit]);
+
   const bodyFlicker = stage === 7 && stage7Phase === "claiming";
   const baseName = userName.trim() ? userName : "Hunter";
   const displayName = assignedTitle ? `${baseName} the ${assignedTitle}` : baseName;
 
   return (
-      <div
-        className={`screen${isGlitching ? " screen--flash" : ""}`}
-        onMouseMove={handlePopupMouseMove}
-      >
+        <div
+          className={`screen${isGlitching ? " screen--flash" : ""}${eyeArrivalGlitch ? " screen--eye-arrival" : ""}`}
+          onMouseMove={handlePopupMouseMove}
+        >
+          
+        {/*cat*/}
         <div className="floating-cat floating-cat--one" aria-hidden="true">
           /ᐠ - ˕ -マ
         </div>
@@ -1066,8 +1141,7 @@ export default function SystemPopup() {
           ₍^. .^₎⟆
         </div>
 
-        <div className="cat-sparkle cat-sparkle--one" aria-hidden="true">Err ⃝or⃟⃤
-      </div>
+        <div className="cat-sparkle cat-sparkle--one" aria-hidden="true">Err ⃝or⃟⃤</div>
         <div className="cat-sparkle cat-sparkle--two" aria-hidden="true">✧</div>
         <div className="cat-sparkle cat-sparkle--three" aria-hidden="true">⋆</div>
 
@@ -1077,7 +1151,7 @@ export default function SystemPopup() {
         <div className="data-particle data-particle--one" aria-hidden="true">01</div>
         <div className="data-particle data-particle--two" aria-hidden="true">◇</div>
         <div className="data-particle data-particle--three" aria-hidden="true">Х̶̿̀͊̍̈́͑̓̈́̃̆́</div>
-
+        
         <div
           className="admin-trigger"
           onClick={handleAdminTrigger}
@@ -1125,6 +1199,16 @@ export default function SystemPopup() {
             </div>
           ) : (
             <div className="admin-popup-body">
+              {eyeVisible && (
+                <div
+                  className={`ai-eye${eyeIntroActive ? " ai-eye--intro" : ""}`}
+                  aria-hidden="true"
+                >
+                  <div className="ai-eye-shape" />
+                  <div className="ai-eye-outline" />
+                  <div className="ai-eye-pupil" />
+                </div>
+              )}
               <p className="admin-message admin-message--success">
                 <span className="bracket">[SYSTEM]</span> Admin mode active.
                 Stage {stage}/{MAX_STAGE}.
@@ -1200,10 +1284,20 @@ export default function SystemPopup() {
           <span className="system-badge">SYSTEM</span>
         </div>
 
-        <div
-          className={`popup-body${bodyFlicker ? " popup-body--flicker" : ""}`}
-        >
-          {stage === 1 && !isGlitching && (
+            <div className={`popup-body${bodyFlicker ? " popup-body--flicker" : ""}`}>
+
+            {stage === 5 && eyeVisible && (
+              <div
+                className={`ai-eye${eyeIntroActive ? " ai-eye--intro" : ""}`}
+                aria-hidden="true"
+              >
+                <div className="ai-eye-shape" />
+                <div className="ai-eye-outline" />
+                <div className="ai-eye-pupil" />
+              </div>
+            )}
+
+            {stage === 1 && !isGlitching && (
             <p className="system-message" key="s1">
               <span className="bracket">[SYSTEM]</span> Daily quest unlocked.
             </p>
