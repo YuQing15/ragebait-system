@@ -11,7 +11,7 @@ const CORRUPT_CHARS = "!@#$%^&*<>[]{}|;:?/\\~`▓▒░█▄▀■□◆◇";
 const ADMIN_PASSWORD = "hunter";
 const MAX_STAGE = 7;
 const DODGE_RADIUS = 100;
-
+const [stage5Mode, setStage5Mode] = useState<"math" | "skip">("math");
 const NEIGHBORS: Record<string, string> = {
   a: "s",
   b: "v",
@@ -89,6 +89,11 @@ const VICTORIAN_INSULTS = [
   "Cognitively Deficient Being",
   "Miserable Halfwit",
   "Tragic Buffoon",
+];
+
+const SKIP_TITLES = [
+  ...MODERN_INSULTS,
+  ...VICTORIAN_INSULTS,
 ];
 
 type MathQuestion = {
@@ -489,6 +494,7 @@ export default function SystemPopup() {
       { x: 0, y: 0 },
     ]);
     setSkipPopupOpen(false);
+    setStage5Mode("math");
 
     mathStartAtRef.current = Date.now();
 
@@ -879,15 +885,11 @@ export default function SystemPopup() {
   );
 
   const handleSkipMathStage = useCallback(() => {
-    setIsGlitching(true);
+    setAssignedTitle(getRandomTitle());
+    setStage5Mode("skip");
 
-    setTimeout(() => {
-      setIsGlitching(false);
-      setSkipPopupOpen(true);
-
-      const idx = Math.floor(Math.random() * SKIP_TITLES.length);
-      setAssignedTitle(SKIP_TITLES[idx]);
-    }, 500);
+    const idx = Math.floor(Math.random() * SKIP_TITLES.length);
+    setAssignedTitle(SKIP_TITLES[idx]);
   }, []);
 
   const handleSkipPopupNext = useCallback(() => {
@@ -1342,36 +1344,39 @@ export default function SystemPopup() {
           {stage === 5 && (
             <div key="s5" className="stage-block">
 
-              {skipPopupOpen ? (
-                // ===== SKIP POPUP (FULL REPLACEMENT) =====
-                <div className="slowpoke-wrap">
-                  <p className="system-message slowpoke-title">
+              {/* 🔥 SKIP MODE (acts like slowpoke) */}
+              {stage5Mode === "skip" && (
+                <>
+                  <p className="system-message">
                     <span className="bracket">[SYSTEM]</span> Shortcut detected.
                   </p>
 
-                  <div className="slowpoke-box">
-                    <div className="slowpoke-cat-col">
-                      <span className="slowpoke-cat">⚠</span>
-                    </div>
+                  <div className="slowpoke-wrap">
+                    <div className="slowpoke-box">
+                      <div className="slowpoke-cat-col">
+                        <span className="slowpoke-cat">⚠</span>
+                      </div>
 
-                    <div className="slowpoke-content">
-                      <p className="slowpoke-msg">
-                        You skipped a basic maths challenge.
-                        <br />
-                        System integrity questionable.
-                        <br /><br />
-                        New designation assigned:
-                        <br />
-                        <span className="slowpoke-name">
-                          {displayName}
-                        </span>
-                      </p>
+                      <div className="slowpoke-content">
+                        <p className="slowpoke-msg">
+                          You skipped a basic maths challenge.
+                          <br />
+                          That was… disappointing.
+                          <br /><br />
+                          Welcome,
+                          <br />
+                          <span className="slowpoke-name">
+                            {displayName}
+                          </span>
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </>
+              )}
 
-              ) : (
-                // ===== NORMAL MATH STAGE =====
+              {/* 🔥 NORMAL MATH MODE */}
+              {stage5Mode === "math" && (
                 <>
                   <p className="system-message">
                     <span className="bracket">[SYSTEM]</span> Solve this, {displayName}.
@@ -1549,7 +1554,7 @@ export default function SystemPopup() {
             </button>
           )}
 
-          {stage === 5 && skipPopupOpen && (
+          {stage === 5 && stage5Mode === "skip" && (
             <button className="accept-btn" onClick={handleSkipPopupNext}>
               Next
             </button>
