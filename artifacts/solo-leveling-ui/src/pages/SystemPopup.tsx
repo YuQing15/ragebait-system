@@ -112,16 +112,7 @@ function getRandomTitle() {
     return MODERN_INSULTS[Math.floor(Math.random() * MODERN_INSULTS.length)];
   }
 
-  if (roll < 0.9) {
-    return VICTORIAN_INSULTS[Math.floor(Math.random() * VICTORIAN_INSULTS.length)];
-  }
-
-  const modern =
-    MODERN_INSULTS[Math.floor(Math.random() * MODERN_INSULTS.length)];
-  const victorian =
-    VICTORIAN_INSULTS[Math.floor(Math.random() * VICTORIAN_INSULTS.length)];
-
-  return `${victorian} (${modern})`;
+  return VICTORIAN_INSULTS[Math.floor(Math.random() * VICTORIAN_INSULTS.length)];
 }
 
 function generateMathQuestion(): MathQuestion {
@@ -1367,7 +1358,7 @@ export default function SystemPopup() {
                   <div className="slowpoke-wrap">
                     <div className="slowpoke-box">
                       <div className="slowpoke-cat-col">
-                        <span className="slowpoke-cat">⚠</span>
+                        <span className="slowpoke-cat">⚠ (·•᷄‎ࡇ•᷅ )</span>
                       </div>
 
                       <div className="slowpoke-content">
@@ -1376,7 +1367,7 @@ export default function SystemPopup() {
                           <br />
                           That was… disappointing.
                           <br /><br />
-                          Welcome,
+                          You are now,
                           <br />
                           <span className="slowpoke-name">
                             {displayName}
