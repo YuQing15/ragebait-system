@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Solo Leveling System UI"
+title = "Ragebait System UI"
 version = "1.0.0"
 id = "artifacts/solo-leveling-ui"
 router = "path"

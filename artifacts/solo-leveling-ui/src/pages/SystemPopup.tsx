@@ -4,13 +4,19 @@ import {
   useLayoutEffect,
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
 import "@/styles/system.css";
+
+/* ──────────────────────────────────────────────────────────────
+   CONSTANTS
+────────────────────────────────────────────────────────────── */
 
 const CORRUPT_CHARS = "!@#$%^&*<>[]{}|;:?/\\~`▓▒░█▄▀■□◆◇";
 const ADMIN_PASSWORD = "hunter";
 const MAX_STAGE = 7;
 const DODGE_RADIUS = 100;
+
 const NEIGHBORS: Record<string, string> = {
   a: "s",
   b: "v",
@@ -41,16 +47,16 @@ const NEIGHBORS: Record<string, string> = {
 };
 
 const TYPE_PHRASES = [
-  { display: "ACCESS GRANTED", internal: "ACCESS\u200bGRANTED" },
-  { display: "SHADOW EXTRACTION", internal: "SHADOW\u200bEXTRACTION" },
-  { display: "DUNGEON CLEAR CODE", internal: "DUNGEON\u200bCLEAR CODE" },
-  { display: "RANK UP PROTOCOL", internal: "RANK\u200bUP PROTOCOL" },
-  { display: "ARISE NOW HUNTER", internal: "ARISE\u200bNOW HUNTER" },
-  { display: "GATE OVERRIDE SEVEN", internal: "GATE\u200bOVERRIDE SEVEN" },
-  { display: "MONARCH SEAL VERIFY", internal: "MONARCH\u200bSEAL VERIFY" },
-  { display: "NULL VOID CONFIRM", internal: "NULL\u200bVOID CONFIRM" },
-  { display: "KXRT ZEPHYR ONLINE", internal: "KXRT\u200bZEPHYR ONLINE" },
-  { display: "VORTEX SIGNAL NULL", internal: "VORTEX\u200bSIGNAL NULL" },
+  { display: "ACCESS GRANTED", internal: "ACCESS GRANTED" },
+  { display: "SHADOW EXTRACTION", internal: "SHADOW EXTRACTION" },
+  { display: "DUNGEON CLEAR CODE", internal: "DUNGEON CLEAR CODE" },
+  { display: "RANK UP PROTOCOL", internal: "RANK UP PROTOCOL" },
+  { display: "ARISE NOW HUNTER", internal: "ARISE NOW HUNTER" },
+  { display: "GATE OVERRIDE SEVEN", internal: "GATE OVERRIDE SEVEN" },
+  { display: "MONARCH SEAL VERIFY", internal: "MONARCH SEAL VERIFY" },
+  { display: "NULL VOID CONFIRM", internal: "NULL VOID CONFIRM" },
+  { display: "KXRT ZEPHYR ONLINE", internal: "KXRT ZEPHYR ONLINE" },
+  { display: "VORTEX SIGNAL NULL", internal: "VORTEX SIGNAL NULL" },
 ];
 
 const MATH_TAUNTS = [
@@ -87,10 +93,53 @@ const VICTORIAN_INSULTS = [
   "Expired Potato",
 ];
 
-const SKIP_TITLES = [
-  ...MODERN_INSULTS,
-  ... VICTORIAN_INSULTS,
-];
+const BUTTON_TAUNTS = {
+  fakeHonesty: [
+    "Honesty appreciated. Still not enough.",
+    "That was adorable. Try again.",
+    "Almost convincing. Continue.",
+    "System remains unconvinced.",
+  ],
+  shrinking: [
+    "Too slow. It got shy.",
+    "You hesitated. It noticed.",
+    "The button dislikes indecision.",
+  ],
+  multiplying: [
+    "Wrong one.",
+    "That decoy looked real to you?",
+    "Amazing. You picked the fake one.",
+  ],
+  delay: [
+    "Too early.",
+    "Too eager.",
+    "Patience was the mechanic, unfortunately.",
+  ],
+  hold: [
+    "You let go.",
+    "Commitment issues detected.",
+    "Hold means hold.",
+  ],
+  rhythm: [
+    "Off beat.",
+    "No rhythm whatsoever.",
+    "That click was tragic.",
+  ],
+  stamina: [
+    "Keep going.",
+    "Still weak.",
+    "The button is outlasting you.",
+  ],
+  oneFrame: [
+    "Missed it.",
+    "That window was generous by my standards.",
+    "Blink slower next time.",
+  ],
+} as const;
+
+/* ──────────────────────────────────────────────────────────────
+   TYPES
+────────────────────────────────────────────────────────────── */
 
 type MathQuestion = {
   prompt: string;
@@ -105,16 +154,75 @@ type Stage3Status =
   | "expired"
   | "slowpoke";
 
-type Stage6Status = "typing" | "checking" | "incorrect" | "granted" | "failed";
+type Stage6Status =
+  | "typing"
+  | "checking"
+  | "incorrect"
+  | "granted";
+
+type Stage1Phase = "first" | "glitching" | "second";
+
+type ButtonBossLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+type BossPhase = "idle" | "pass";
+
+type MultiButton = {
+  id: number;
+  label: string;
+  isReal: boolean;
+};
+
+/* ──────────────────────────────────────────────────────────────
+   HELPERS
+────────────────────────────────────────────────────────────── */
+
+function getRandomFrom<T>(list: readonly T[]): T {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 function getRandomTitle() {
-  const roll = Math.random();
+  if (Math.random() < 0.5) {
+    return getRandomFrom(MODERN_INSULTS);
+  }
+  return getRandomFrom(VICTORIAN_INSULTS);
+}
 
-  if (roll < 0.5) {
-    return MODERN_INSULTS[Math.floor(Math.random() * MODERN_INSULTS.length)];
+function randomCorrupt(len: number) {
+  return Array.from(
+    { length: len },
+    () => CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)],
+  ).join("");
+}
+
+function fullCorrupt(s: string): string {
+  const out = s.split("").map((c) => {
+    const r = Math.random();
+    if (r < 0.35) {
+      return CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)];
+    }
+    if (r < 0.55) {
+      return c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase();
+    }
+    return c;
+  });
+
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    if (Math.random() < 0.45) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
   }
 
-  return VICTORIAN_INSULTS[Math.floor(Math.random() * VICTORIAN_INSULTS.length)];
+  return out.join("");
 }
 
 function generateMathQuestion(): MathQuestion {
@@ -177,13 +285,11 @@ function generateMathQuestion(): MathQuestion {
   ];
 
   let question = patterns[rand(0, patterns.length - 1)]();
-
   while (question.correct < 0) {
     question = patterns[rand(0, patterns.length - 1)]();
   }
 
   const wrongs = new Set<number>();
-
   while (wrongs.size < 3) {
     const mode = rand(1, 5);
     let candidate: number;
@@ -192,98 +298,101 @@ function generateMathQuestion(): MathQuestion {
     else if (mode === 2) candidate = question.correct - rand(1, 12);
     else if (mode === 3) candidate = question.correct + rand(13, 25);
     else if (mode === 4) candidate = question.correct - rand(13, 25);
-    else candidate = question.correct + (Math.random() < 0.5 ? -1 : 1) * rand(2, 8);
-
-    if (candidate >= 0 && candidate !== question.correct) {
-      wrongs.add(candidate);
+    else {
+      candidate =
+        question.correct + (Math.random() < 0.5 ? -1 : 1) * rand(2, 8);
     }
-  }
 
-  const options = shuffle([question.correct, ...Array.from(wrongs)]);
+    if (candidate >= 0 && candidate !== question.correct) wrongs.add(candidate);
+  }
 
   return {
     prompt: question.prompt,
     correct: question.correct,
-    options,
+    options: shuffle([question.correct, ...Array.from(wrongs)]),
   };
 }
 
-function fullCorrupt(s: string): string {
-  const out = s.split("").map((c) => {
-    const r = Math.random();
-    if (r < 0.35) {
-      return CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)];
-    }
-    if (r < 0.55) {
-      return c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase();
-    }
-    return c;
-  });
-
-  for (let i = out.length - 1; i > 0; i--) {
-    if (Math.random() < 0.45) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [out[i], out[j]] = [out[j], out[i]];
-    }
+function buildMultiButtons(realCount: number, totalCount: number): MultiButton[] {
+  const realIndices = new Set<number>();
+  while (realIndices.size < realCount) {
+    realIndices.add(Math.floor(Math.random() * totalCount));
   }
 
-  return out.join("");
+  const labels = [
+    "REAL",
+    "CLICK",
+    "THIS",
+    "NOW",
+    "REAL?",
+    "NOPE",
+    "TRY ME",
+    "SAFE",
+    "WIN",
+    "PRESS",
+    "MAYBE",
+    "GOOD",
+  ];
+
+  return shuffle(
+    Array.from({ length: totalCount }, (_, i) => ({
+      id: i + 1 + Math.floor(Math.random() * 100000),
+      label: realIndices.has(i) ? "REAL" : labels[i % labels.length],
+      isReal: realIndices.has(i),
+    })),
+  );
 }
 
-function corruptForSlowpoke(s: string): string {
-  if (!s.trim()) return "ERROR_NULL_PLAYER";
-
-  const upper = s.toUpperCase().split("");
-  const out = upper.map((c) => {
-    const r = Math.random();
-    if (r < 0.22) {
-      return CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)];
-    }
-    if (r < 0.38) return "?";
-    return c;
-  });
-
-  return out.sort(() => Math.random() - 0.5).join("") + "_??";
-}
-
-function randomCorrupt(len: number) {
-  return Array.from(
-    { length: len },
-    () => CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)],
-  ).join("");
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+/* ──────────────────────────────────────────────────────────────
+   COMPONENT
+────────────────────────────────────────────────────────────── */
 
 export default function SystemPopup() {
+  /* ───────── general flow ───────── */
   const [stage, setStage] = useState(1);
+  const [showRewards, setShowRewards] = useState(false);
+
+  /* ───────── admin / testing ───────── */
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminError, setAdminError] = useState(false);
+  const [adminJumpOpen, setAdminJumpOpen] = useState(false);
+  const [adminAssist, setAdminAssist] = useState(false);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const [adminCheatAccept, setAdminCheatAccept] = useState(false);
+  const [adminCheatStage7, setAdminCheatStage7] = useState(false);
+
+  /* ───────── global annoyances ───────── */
   const [isGlitching, setIsGlitching] = useState(false);
   const [corruptText, setCorruptText] = useState("");
+  const [pendingAction, setPendingAction] = useState(false);
+  const [btnJammed, setBtnJammed] = useState(false);
   const glitchDoneRef = useRef<() => void>(() => {});
-  const [stage5Mode, setStage5Mode] = useState<"math" | "skip">("math");
-  const [spiritPos, setSpiritPos] = useState({ x: 220, y: -10 });
-  const [isDraggingSpirit, setIsDraggingSpirit] = useState(false);
-  
+
+  /* ───────── player identity ───────── */
+  const [userName, setUserName] = useState("");
+  const [assignedTitle, setAssignedTitle] = useState<string | null>(null);
+
+  /* ───────── stage 1 - accept button ───────── */
+  const [stage1Phase, setStage1Phase] = useState<Stage1Phase>("first");
+  const [stage1ErrorText, setStage1ErrorText] = useState("");
+  const [explosionPos, setExplosionPos] = useState({ x: 0, y: 0 });
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const naturalPos = useRef<{ x: number; y: number } | null>(null);
   const dodgeCoolRef = useRef(false);
 
+  /* ───────── stage 2 - recalculating ───────── */
   const [isRecalculating, setIsRecalculating] = useState(false);
 
+  /* ───────── stage 3 - name typing ───────── */
   const [inputValue, setInputValue] = useState("");
   const [inputDisabled, setInputDisabled] = useState(false);
   const [stage3Status, setStage3Status] = useState<Stage3Status>("typing");
   const [slowpokeName, setSlowpokeName] = useState("");
-  const [userName, setUserName] = useState("");
+  const [nameTimer, setNameTimer] = useState(3);
 
   const inputValueRef = useRef("");
   const corruptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -292,28 +401,21 @@ export default function SystemPopup() {
   const backspaceUsedRef = useRef(false);
   const slowpokeShownRef = useRef(false);
   const stage3StatusRef = useRef<Stage3Status>("typing");
-  const [nameTimer, setNameTimer] = useState(3);
   const nameTimerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [eyeVisible, setEyeVisible] = useState(false);
-  const [eyeIntroActive, setEyeIntroActive] = useState(false);
-  const [eyeArrivalGlitch, setEyeArrivalGlitch] = useState(false);
-
-  const setS3 = useCallback((s: Stage3Status) => {
-    stage3StatusRef.current = s;
-    setStage3Status(s);
-  }, []);
-
+  /* ───────── stage 4 - fake loading ───────── */
   const [stage4Phase, setStage4Phase] = useState<"filling" | "stuck" | "error">(
     "filling",
   );
 
+  /* ───────── stage 5 - maths ───────── */
   const [mathQuestion, setMathQuestion] = useState<MathQuestion>(
     generateMathQuestion(),
   );
   const [mathStatus, setMathStatus] = useState<"playing" | "taunt" | "pass">(
     "playing",
   );
+  const [stage5Mode, setStage5Mode] = useState<"math" | "skip">("math");
   const [mathTaunt, setMathTaunt] = useState("");
   const [mathOptions, setMathOptions] = useState<number[]>([]);
   const [mathOptionPos, setMathOptionPos] = useState([
@@ -322,35 +424,211 @@ export default function SystemPopup() {
     { x: 0, y: 0 },
     { x: 0, y: 0 },
   ]);
-  const [assignedTitle, setAssignedTitle] = useState<string | null>(null);
-  const [skipPopupOpen, setSkipPopupOpen] = useState(false);
-
   const mathStartAtRef = useRef<number>(0);
   const mathTauntTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mathIdleTauntRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rewardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
+  /* ───────── stage 6 - phrase typing ───────── */
   const [typeInput, setTypeInput] = useState("");
+  const [typeInputVisible, setTypeInputVisible] = useState("");
   const [typeStatus, setTypeStatus] = useState<Stage6Status>("typing");
   const [typePhrase, setTypePhrase] = useState(TYPE_PHRASES[0]);
-  const [typeAttempts, setTypeAttempts] = useState(0);
+  const [typeErrorFlash, setTypeErrorFlash] = useState(false);
+  const [typeErrorText, setTypeErrorText] = useState("");
+
   const typeInputRef = useRef("");
   const typeCorruptRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [stage7Phase, setStage7Phase] = useState<
-    "granted" | "claiming" | "final"
-  >("granted");
-  const stageFinalDirect = useRef(false);
+  /* ───────── stage 7 - button boss ───────── */
+  const [buttonBossLevel, setButtonBossLevel] = useState<ButtonBossLevel>(1);
+  const [buttonBossPhase, setButtonBossPhase] = useState<BossPhase>("idle");
+  const [buttonBossTaunt, setButtonBossTaunt] = useState("");
 
-  const [pendingAction, setPendingAction] = useState(false);
-  const [btnJammed, setBtnJammed] = useState(false);
+  const [fakeHonestyCount, setFakeHonestyCount] = useState(0);
+  const [fakeHonestyTarget, setFakeHonestyTarget] = useState(7);
+  const [fakeHonestyFakeoutUsed, setFakeHonestyFakeoutUsed] = useState(false);
+  const fakeHonestyLastClickRef = useRef(0);
 
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [adminError, setAdminError] = useState(false);
-  const [adminJumpOpen, setAdminJumpOpen] = useState(false);
-  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const [shrinkScale, setShrinkScale] = useState(1);
+  const [shrinkPhase, setShrinkPhase] = useState<"first" | "fakeReset" | "second">("first");
+  const [shrinkJitter, setShrinkJitter] = useState({ x: 0, y: 0 });
+  const [shrinkTravelX, setShrinkTravelX] = useState(-120);
+  const [shrinkLoopTick, setShrinkLoopTick] = useState(0);
+
+  const [multiButtons, setMultiButtons] = useState<MultiButton[]>([]);
+  const [multiRequiredHits, setMultiRequiredHits] = useState(0);
+  const [multiHits, setMultiHits] = useState(0);
+
+  const [delayTrapReady, setDelayTrapReady] = useState(false);
+  const [delayTrapStarted, setDelayTrapStarted] = useState(false);
+
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [isHoldingBoss, setIsHoldingBoss] = useState(false);
+
+  const [rhythmActive, setRhythmActive] = useState(false);
+  const [rhythmHits, setRhythmHits] = useState(0);
+
+  const [staminaValue, setStaminaValue] = useState(0);
+
+  const [oneFrameVisible, setOneFrameVisible] = useState(false);
+  const [oneFrameHits, setOneFrameHits] = useState(0);
+
+  /* ───────── eye / visual stuff ───────── */
+  const [eyeVisible, setEyeVisible] = useState(false);
+  const [eyeIntroActive, setEyeIntroActive] = useState(false);
+  const [eyeArrivalGlitch, setEyeArrivalGlitch] = useState(false);
+
+  /* ──────────────────────────────────────
+     DERIVED
+  ───────────────────────────────────── */
+
+  const displayedMathOptions =
+    mathOptions.length > 0 ? mathOptions : mathQuestion.options;
+
+  const baseName = userName.trim() ? userName : "Hunter";
+  const displayName = assignedTitle ? `${baseName} the ${assignedTitle}` : baseName;
+
+  const stage7ProgressText = `LEVEL ${buttonBossLevel}/8`;
+
+  const buttonBossHint = useMemo(() => {
+    switch (buttonBossLevel) {
+      case 1:
+        return "Prove your sincerity.";
+      case 2:
+        return "Click before it shrinks away.";
+      case 3:
+        return "Only the real buttons count.";
+      case 4:
+        return "Click only when it is truly ready.";
+      case 5:
+        return "Hold. Do not release early.";
+      case 6:
+        return "Click on-beat only.";
+      case 7:
+        return "Drain its stamina faster than it drains yours.";
+      case 8:
+        return "Watch closely. Catch every flash.";
+      default:
+        return "";
+    }
+  }, [buttonBossLevel]);
+
+  const buttonBossLabel = useMemo(() => {
+    switch (buttonBossLevel) {
+      case 1:
+        return "I AM HONEST";
+      case 2:
+        return "CATCH ME";
+      case 3:
+        return "REAL";
+      case 4:
+        return delayTrapReady ? "NOW" : delayTrapStarted ? "WAIT..." : "CLICK";
+      case 5:
+        return "HOLD";
+      case 6:
+        return rhythmActive ? "NOW" : "…";
+      case 7:
+        return "DRAIN";
+      case 8:
+        return oneFrameVisible ? "!" : "";
+      default:
+        return "BUTTON";
+    }
+  }, [buttonBossLevel, delayTrapReady, delayTrapStarted, rhythmActive, oneFrameVisible]);
+
+  /* ──────────────────────────────────────
+     SHARED HELPERS
+  ───────────────────────────────────── */
+
+  const setS3 = useCallback((s: Stage3Status) => {
+    stage3StatusRef.current = s;
+    setStage3Status(s);
+  }, []);
+
+  const withDelay = useCallback(
+    (fn: () => void, ms = 700) => {
+      if (pendingAction || btnJammed) return;
+      setPendingAction(true);
+      setTimeout(() => {
+        setPendingAction(false);
+        fn();
+      }, ms);
+    },
+    [pendingAction, btnJammed],
+  );
+
+  const isCheatOn = adminUnlocked && adminAssist;
+
+  const resetButtonBossLevel = useCallback((level: ButtonBossLevel) => {
+    setButtonBossLevel(level);
+    setButtonBossPhase("idle");
+    setButtonBossTaunt("");
+
+    setFakeHonestyCount(0);
+    setFakeHonestyTarget(7);
+    setFakeHonestyFakeoutUsed(false);
+    fakeHonestyLastClickRef.current = 0;
+
+    setShrinkScale(1);
+    setShrinkPhase("first");
+    setShrinkJitter({ x: 0, y: 0 });
+    setShrinkTravelX(-120);
+    setShrinkLoopTick(0);
+
+    setMultiButtons([]);
+    setMultiRequiredHits(0);
+    setMultiHits(0);
+
+    setDelayTrapReady(false);
+    setDelayTrapStarted(false);
+
+    setHoldProgress(0);
+    setIsHoldingBoss(false);
+
+    setRhythmActive(false);
+    setRhythmHits(0);
+
+    setStaminaValue(0);
+
+    setOneFrameVisible(false);
+    setOneFrameHits(0);
+  }, []);
+
+  const advanceButtonBossLevel = useCallback(() => {
+    setButtonBossPhase("pass");
+    setButtonBossTaunt("");
+
+    setTimeout(() => {
+      setButtonBossPhase("idle");
+      setButtonBossLevel((prev) => {
+        if (prev >= 8) {
+          setShowRewards(true);
+          return 8;
+        }
+        return (prev + 1) as ButtonBossLevel;
+      });
+
+      setFakeHonestyCount(0);
+      setShrinkScale(1);
+      setMultiButtons([]);
+      setMultiRequiredHits(0);
+      setMultiHits(0);
+      setDelayTrapReady(false);
+      setDelayTrapStarted(false);
+      setHoldProgress(0);
+      setIsHoldingBoss(false);
+      setRhythmActive(false);
+      setRhythmHits(0);
+      setStaminaValue(0);
+      setOneFrameVisible(false);
+      setOneFrameHits(0);
+    }, 700);
+  }, []);
+
+  /* ──────────────────────────────────────
+     LAYOUT / EFFECTS
+  ───────────────────────────────────── */
 
   useLayoutEffect(() => {
     if (stage !== 1) return;
@@ -361,7 +639,7 @@ export default function SystemPopup() {
     const bR = btn.getBoundingClientRect();
     const pR = popup.getBoundingClientRect();
     naturalPos.current = { x: bR.left - pR.left, y: bR.top - pR.top };
-  }, [stage]);
+  }, [stage, stage1Phase]);
 
   useEffect(() => {
     if (!isGlitching) return;
@@ -442,16 +720,11 @@ export default function SystemPopup() {
       });
     }, 1000);
 
-    const fallback = setTimeout(() => setStage(4), 60000);
-
     return () => {
-      clearTimeout(fallback);
-
       if (corruptTimerRef.current) {
         clearTimeout(corruptTimerRef.current);
         corruptTimerRef.current = null;
       }
-
       if (nameTimerIntervalRef.current) {
         clearInterval(nameTimerIntervalRef.current);
         nameTimerIntervalRef.current = null;
@@ -474,36 +747,36 @@ export default function SystemPopup() {
   }, [stage]);
 
   useEffect(() => {
-    if (stage !== 5) {
+    if (stage < 5) {
       setEyeVisible(false);
       setEyeIntroActive(false);
       setEyeArrivalGlitch(false);
       return;
     }
+    
+    setStage5Mode("math");
 
-    setEyeVisible(false);
-    setEyeIntroActive(true);
-    setEyeArrivalGlitch(true);
+    if (stage === 5) {
+      setEyeVisible(false);
+      setEyeIntroActive(true);
+      setEyeArrivalGlitch(true);
 
-    const glitchTimer = setTimeout(() => {
-      setEyeVisible(true);
-    }, 1100);
+      const glitchTimer = setTimeout(() => setEyeVisible(true), 1100);
+      const glitchEndTimer = setTimeout(() => setEyeArrivalGlitch(false), 1800);
+      const introEndTimer = setTimeout(() => setEyeIntroActive(false), 5000);
 
-    const glitchEndTimer = setTimeout(() => {
-      setEyeArrivalGlitch(false);
-    }, 1800);
+      return () => {
+        clearTimeout(glitchTimer);
+        clearTimeout(glitchEndTimer);
+        clearTimeout(introEndTimer);
+      };
+    }
 
-    const introEndTimer = setTimeout(() => {
-      setEyeIntroActive(false);
-    }, 5000);
-
-    return () => {
-      clearTimeout(glitchTimer);
-      clearTimeout(glitchEndTimer);
-      clearTimeout(introEndTimer);
-    };
+    setEyeVisible(true);
+    setEyeIntroActive(false);
+    setEyeArrivalGlitch(false);
   }, [stage]);
-  
+
   useEffect(() => {
     if (stage !== 5) return;
 
@@ -518,8 +791,6 @@ export default function SystemPopup() {
       { x: 0, y: 0 },
       { x: 0, y: 0 },
     ]);
-    setSkipPopupOpen(false);
-    setStage5Mode("math");
 
     mathStartAtRef.current = Date.now();
 
@@ -528,22 +799,20 @@ export default function SystemPopup() {
 
     const shuffleIv = setInterval(() => {
       setMathOptions((prev) => shuffle(prev));
-    }, 2600);
+    }, isCheatOn ? 999999 : 2600);
 
-    mathIdleTauntRef.current = setTimeout(() => {
-      if (!skipPopupOpen) {
-        setMathTaunt(
-          MATH_TAUNTS[Math.floor(Math.random() * MATH_TAUNTS.length)],
-        );
-      }
-    }, 2500);
+    if (!isCheatOn) {
+      mathIdleTauntRef.current = setTimeout(() => {
+        setMathTaunt(getRandomFrom(MATH_TAUNTS));
+      }, 2500);
+    }
 
     return () => {
       clearInterval(shuffleIv);
       if (mathTauntTimerRef.current) clearTimeout(mathTauntTimerRef.current);
       if (mathIdleTauntRef.current) clearTimeout(mathIdleTauntRef.current);
     };
-  }, [stage, skipPopupOpen]);
+  }, [stage, isCheatOn]);
 
   useEffect(() => {
     if (stage !== 6) return;
@@ -551,9 +820,11 @@ export default function SystemPopup() {
     const idx = Math.floor(Math.random() * TYPE_PHRASES.length);
     setTypePhrase(TYPE_PHRASES[idx]);
     setTypeInput("");
+    setTypeInputVisible("");
     typeInputRef.current = "";
     setTypeStatus("typing");
-    setTypeAttempts(0);
+    setTypeErrorFlash(false);
+    setTypeErrorText("");
 
     if (typeCorruptRef.current) {
       clearTimeout(typeCorruptRef.current);
@@ -563,30 +834,283 @@ export default function SystemPopup() {
 
   useEffect(() => {
     if (stage !== 7) return;
-    if (stageFinalDirect.current) {
-      stageFinalDirect.current = false;
-      setStage7Phase("final");
-      return;
-    }
-    setStage7Phase("granted");
-  }, [stage]);
+
+    resetButtonBossLevel(1);
+
+    const cheatMode = adminUnlocked && adminCheatStage7;
+    setFakeHonestyTarget(cheatMode ? 2 : 6 + Math.floor(Math.random() * 4)); // 6–9
+  }, [stage, resetButtonBossLevel, adminUnlocked, adminCheatStage7]);
 
   useEffect(() => {
-    if (stage < 2 || stage > 6) return;
+    if (stage !== 7 || buttonBossLevel !== 2) return;
+
+    setShrinkScale(1);
+    setShrinkPhase("first");
+    setShrinkJitter({ x: 0, y: 0 });
+    setShrinkTravelX(-120);
+
+    if (isCheatOn) {
+      const cheatShrinkIv = setInterval(() => {
+        setShrinkScale((prev) => {
+          const next = prev - 0.018;
+          if (next <= 0.72) {
+            clearInterval(cheatShrinkIv);
+            setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.shrinking));
+            setTimeout(() => {
+              setShrinkScale(1);
+              setButtonBossTaunt("");
+              setShrinkTravelX(-120);
+            }, 500);
+            return 1;
+          }
+          return next;
+        });
+      }, 260);
+
+      return () => clearInterval(cheatShrinkIv);
+    }
+
+    let cancelled = false;
+    let shrinkIv: ReturnType<typeof setInterval> | null = null;
+    let jitterIv: ReturnType<typeof setInterval> | null = null;
+    let travelIv: ReturnType<typeof setInterval> | null = null;
+    let phaseSwapTimer: ReturnType<typeof setTimeout> | null = null;
+    let loopRestartTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const startBluePhase = () => {
+      if (cancelled) return;
+
+      setShrinkPhase("first");
+      setShrinkScale(1);
+      setShrinkTravelX(-120);
+      setShrinkJitter({ x: 14, y: 0 });
+      setButtonBossTaunt("");
+
+      if (travelIv) clearInterval(travelIv);
+      if (jitterIv) clearInterval(jitterIv);
+      if (shrinkIv) clearInterval(shrinkIv);
+
+      travelIv = setInterval(() => {
+        setShrinkTravelX((prev) => {
+          const next = prev + 14;
+          return next > 120 ? -120 : next;
+        });
+      }, 65);
+
+      jitterIv = setInterval(() => {
+        setShrinkJitter((prev) => {
+          const direction = prev.x >= 0 ? -1 : 1;
+          return {
+            x: direction * (12 + Math.random() * 10),
+            y: (Math.random() - 0.5) * 6,
+          };
+        });
+      }, 48);
+
+      shrinkIv = setInterval(() => {
+        setShrinkScale((prev) => {
+          const next = prev - 0.07;
+
+          if (next <= 0.28) {
+            if (shrinkIv) clearInterval(shrinkIv);
+            setButtonBossTaunt("Too slow.");
+
+            phaseSwapTimer = setTimeout(() => {
+              startRedPhase();
+            }, 240);
+
+            return 0.28;
+          }
+
+          return next;
+        });
+      }, 120);
+    };
+
+    const startRedPhase = () => {
+      if (cancelled) return;
+
+      setShrinkPhase("second");
+      setShrinkScale(0.92);
+      setShrinkTravelX(-120);
+      setShrinkJitter({ x: 24, y: 0 });
+      setButtonBossTaunt("It came back worse.");
+
+      if (travelIv) clearInterval(travelIv);
+      if (jitterIv) clearInterval(jitterIv);
+      if (shrinkIv) clearInterval(shrinkIv);
+
+      travelIv = setInterval(() => {
+        setShrinkTravelX((prev) => {
+          const next = prev + 22;
+          return next > 120 ? -120 : next;
+        });
+      }, 42);
+
+      jitterIv = setInterval(() => {
+        setShrinkJitter((prev) => {
+          const direction = prev.x >= 0 ? -1 : 1;
+          return {
+            x: direction * (20 + Math.random() * 18),
+            y: (Math.random() - 0.5) * 10,
+          };
+        });
+      }, 28);
+
+      shrinkIv = setInterval(() => {
+        setShrinkScale((prev) => {
+          const next = prev - 0.1;
+
+          if (next <= 0.12) {
+            if (shrinkIv) clearInterval(shrinkIv);
+            if (travelIv) clearInterval(travelIv);
+            if (jitterIv) clearInterval(jitterIv);
+
+            setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.shrinking));
+
+            loopRestartTimer = setTimeout(() => {
+              setShrinkLoopTick((v) => v + 1);
+            }, 420);
+
+            return 0.12;
+          }
+
+          return next;
+        });
+      }, 85);
+    };
+
+    startBluePhase();
+
+    return () => {
+      cancelled = true;
+      if (shrinkIv) clearInterval(shrinkIv);
+      if (jitterIv) clearInterval(jitterIv);
+      if (travelIv) clearInterval(travelIv);
+      if (phaseSwapTimer) clearTimeout(phaseSwapTimer);
+      if (loopRestartTimer) clearTimeout(loopRestartTimer);
+    };
+  }, [stage, buttonBossLevel, isCheatOn, shrinkLoopTick]);
+
+  useEffect(() => {
+    if (stage !== 7 || buttonBossLevel !== 3) return;
+
+    const total = isCheatOn ? 6 : 9;
+    const required = isCheatOn ? 1 : 2;
+
+    setMultiRequiredHits(required);
+    setMultiHits(0);
+    setMultiButtons(buildMultiButtons(1, total));
+  }, [stage, buttonBossLevel, isCheatOn]);
+  
+  useEffect(() => {
+    if (stage !== 7 || buttonBossLevel !== 6) return;
+
+    let cancelled = false;
+    let onTimer: ReturnType<typeof setTimeout> | null = null;
+    let offTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const onDuration = isCheatOn ? 450 : 160;
+    const offDuration = isCheatOn ? 950 : 700;
+
+    const cycle = () => {
+      if (cancelled) return;
+      setRhythmActive(true);
+
+      onTimer = setTimeout(() => {
+        setRhythmActive(false);
+
+        offTimer = setTimeout(() => {
+          cycle();
+        }, offDuration);
+      }, onDuration);
+    };
+
+    cycle();
+
+    return () => {
+      cancelled = true;
+      if (onTimer) clearTimeout(onTimer);
+      if (offTimer) clearTimeout(offTimer);
+    };
+  }, [stage, buttonBossLevel, isCheatOn]);
+
+  useEffect(() => {
+    if (stage !== 7 || buttonBossLevel !== 7) return;
+
+    const decay = setInterval(() => {
+      setStaminaValue((prev) => Math.max(0, prev - (isCheatOn ? 1 : 6)));
+    }, isCheatOn ? 300 : 180);
+
+    return () => clearInterval(decay);
+  }, [stage, buttonBossLevel, isCheatOn]);
+
+  useEffect(() => {
+    if (stage !== 7 || buttonBossLevel !== 8) return;
+
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const visibleMs = isCheatOn ? 950 : 110;
+    const everyMs = isCheatOn ? 1200 : 1300;
+
+    setOneFrameVisible(false);
+
+    intervalId = setInterval(() => {
+      if (cancelled) return;
+      setOneFrameVisible(true);
+
+      setTimeout(() => {
+        if (!cancelled) setOneFrameVisible(false);
+      }, visibleMs);
+    }, everyMs);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [stage, buttonBossLevel, isCheatOn]);
+
+  useEffect(() => {
+    if (stage !== 7 || buttonBossLevel !== 5 || !isHoldingBoss) return;
+
+    const need = isCheatOn ? 100 : 100;
+    const tick = isCheatOn ? 12 : 4;
+    const speed = isCheatOn ? 50 : 80;
+
+    const iv = setInterval(() => {
+      setHoldProgress((prev) => {
+        const next = prev + tick;
+        if (next >= need) {
+          clearInterval(iv);
+          setIsHoldingBoss(false);
+          setHoldProgress(100);
+          setTimeout(() => advanceButtonBossLevel(), 250);
+          return 100;
+        }
+        return next;
+      });
+    }, speed);
+
+    return () => clearInterval(iv);
+  }, [stage, buttonBossLevel, isHoldingBoss, isCheatOn, advanceButtonBossLevel]);
+
+  useEffect(() => {
+    if (stage < 2 || stage > 7) return;
 
     setBtnJammed(false);
     const iv = setInterval(() => {
-      if (Math.random() < 0.45) {
+      if (Math.random() < (isCheatOn ? 0.08 : 0.45)) {
         setBtnJammed(true);
-        setTimeout(() => setBtnJammed(false), 420);
+        setTimeout(() => setBtnJammed(false), isCheatOn ? 120 : 420);
       }
-    }, 3800);
+    }, isCheatOn ? 7000 : 3800);
 
     return () => {
       clearInterval(iv);
       setBtnJammed(false);
     };
-  }, [stage]);
+  }, [stage, isCheatOn]);
 
   useEffect(() => {
     if (adminOpen && !adminUnlocked) {
@@ -594,35 +1118,35 @@ export default function SystemPopup() {
     }
   }, [adminOpen, adminUnlocked]);
 
-  const withDelay = useCallback(
-    (fn: () => void, ms = 700) => {
-      if (pendingAction || btnJammed) return;
-      setPendingAction(true);
-      setTimeout(() => {
-        setPendingAction(false);
-        fn();
-      }, ms);
-    },
-    [pendingAction, btnJammed],
-  );
+  /* ──────────────────────────────────────
+     STAGE 1 - ACCEPT BUTTON
+  ───────────────────────────────────── */
 
   const handlePopupMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (stage !== 1 || isGlitching || dodgeCoolRef.current) return;
+      if (stage !== 1 || isGlitching) return;
+      if (dodgeCoolRef.current) return;
+      if (stage1Phase === "explode") return;
 
       const btn = buttonRef.current;
       const popup = popupRef.current;
       if (!btn || !popup || !naturalPos.current) return;
 
+      const cheatMode = adminUnlocked && adminCheatAccept;
+
+      if (cheatMode) return;
+
       const bR = btn.getBoundingClientRect();
       const pR = popup.getBoundingClientRect();
       const btnCx = bR.left + bR.width / 2;
       const btnCy = bR.top + bR.height / 2;
+
+      const radius = stage1Phase === "second" ? 145 : DODGE_RADIUS;
       const dist = Math.sqrt(
         (e.clientX - btnCx) ** 2 + (e.clientY - btnCy) ** 2,
       );
 
-      if (dist > DODGE_RADIUS) return;
+      if (dist > radius) return;
 
       const pad = 20;
       const minX = pad;
@@ -639,9 +1163,11 @@ export default function SystemPopup() {
         ty = minY + Math.random() * (maxY - minY);
         tries++;
       } while (
-        tries < 12 &&
-        Math.abs(tx - (naturalPos.current.x + translate.x)) < 70 &&
-        Math.abs(ty - (naturalPos.current.y + translate.y)) < 35
+        tries < 16 &&
+        Math.abs(tx - (naturalPos.current.x + translate.x)) <
+          (stage1Phase === "second" ? 110 : 70) &&
+        Math.abs(ty - (naturalPos.current.y + translate.y)) <
+          (stage1Phase === "second" ? 60 : 35)
       );
 
       setTranslate({
@@ -652,87 +1178,129 @@ export default function SystemPopup() {
       dodgeCoolRef.current = true;
       setTimeout(() => {
         dodgeCoolRef.current = false;
-      }, 280);
+      }, stage1Phase === "second" ? 120 : 280);
     },
-    [stage, isGlitching, translate],
+    [stage, isGlitching, translate, stage1Phase, adminUnlocked, adminCheatAccept],
   );
 
   const handleAccept = useCallback(() => {
-    setTranslate({ x: 0, y: 0 });
-    glitchDoneRef.current = () => setStage(2);
-    setIsGlitching(true);
-  }, []);
+    const cheatMode = adminUnlocked && adminCheatAccept;
 
-  const handleSlowpokeNext = useCallback(() => {
-    setStage(4);
-  }, []);
+    if (cheatMode) {
+      setTranslate({ x: 0, y: 0 });
+    }
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (stage3StatusRef.current !== "typing") return;
+    if (stage1Phase === "first") {
+      const btn = buttonRef.current;
+      const popup = popupRef.current;
 
-      const newVal = e.target.value;
+      if (btn && popup) {
+        const bR = btn.getBoundingClientRect();
+        const pR = popup.getBoundingClientRect();
 
-      if (!firstKeypressAtRef.current && newVal.length > 0) {
-        firstKeypressAtRef.current = Date.now();
+        setExplosionPos({
+          x: bR.left - pR.left + bR.width / 2,
+          y: bR.top - pR.top + bR.height / 2,
+        });
       }
 
-      setInputValue(newVal);
-      inputValueRef.current = newVal;
+      setStage1ErrorText("ERROR // ACCEPT OVERRIDE");
+      setStage1Phase("glitching");
 
-      if (newVal.length < 2) return;
+      setTimeout(() => {
+        setStage1ErrorText("SECOND CONFIRMATION REQUIRED");
+      }, 260);
 
-      if (Math.random() > 0.15) {
-        if (corruptTimerRef.current) clearTimeout(corruptTimerRef.current);
-        const delay = 55 + Math.random() * 110;
+      setTimeout(() => {
+        setTranslate({ x: 0, y: 0 });
+        setStage1Phase("second");
+        setStage1ErrorText("");
+      }, 820);
 
-        corruptTimerRef.current = setTimeout(() => {
-          corruptTimerRef.current = null;
-          const cur = inputValueRef.current;
-          if (!cur.length) return;
+      return;
+    }
 
-          const r = Math.random();
-          let next: string;
+    if (stage1Phase === "second") {
+      setTranslate({ x: 0, y: 0 });
+      glitchDoneRef.current = () => setStage(2);
+      setIsGlitching(true);
+    }
+  }, [stage1Phase, adminUnlocked, adminCheatAccept]);
 
-          if (r < 0.3) {
-            const pos = Math.floor(Math.random() * cur.length);
-            next = cur.slice(0, pos) + cur.slice(pos + 1);
-          } else if (r < 0.44) {
-            next = "";
-          } else if (r < 0.64) {
-            const pos = Math.floor(Math.random() * cur.length);
-            const rep =
-              Math.random() < 0.55
-                ? CORRUPT_CHARS[
-                    Math.floor(Math.random() * CORRUPT_CHARS.length)
-                  ]
-                : String.fromCharCode(97 + Math.floor(Math.random() * 26));
-            next = cur.slice(0, pos) + rep + cur.slice(pos + 1);
-          } else if (r < 0.82) {
-            next = fullCorrupt(cur);
-          } else {
-            next = cur
-              .split("")
-              .sort(() => Math.random() - 0.5)
-              .join("");
-          }
+  /* ──────────────────────────────────────
+     STAGE 3 - NAME
+  ───────────────────────────────────── */
 
-          setInputValue(next);
-          inputValueRef.current = next;
-        }, delay);
-      }
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (stage3StatusRef.current !== "typing") return;
+
+    const newVal = e.target.value;
+
+    if (!firstKeypressAtRef.current && newVal.length > 0) {
+      firstKeypressAtRef.current = Date.now();
+    }
+
+    setInputValue(newVal);
+    inputValueRef.current = newVal;
+
+    if (isCheatOn || newVal.length < 2) return;
+
+    if (Math.random() > 0.15) {
+      if (corruptTimerRef.current) clearTimeout(corruptTimerRef.current);
+      const delay = 55 + Math.random() * 110;
+
+      corruptTimerRef.current = setTimeout(() => {
+        corruptTimerRef.current = null;
+        const cur = inputValueRef.current;
+        if (!cur.length) return;
+
+        const r = Math.random();
+        let next: string;
+
+        if (r < 0.3) {
+          const pos = Math.floor(Math.random() * cur.length);
+          next = cur.slice(0, pos) + cur.slice(pos + 1);
+        } else if (r < 0.44) {
+          next = "";
+        } else if (r < 0.64) {
+          const pos = Math.floor(Math.random() * cur.length);
+          const rep =
+            Math.random() < 0.55
+              ? CORRUPT_CHARS[
+                  Math.floor(Math.random() * CORRUPT_CHARS.length)
+                ]
+              : String.fromCharCode(97 + Math.floor(Math.random() * 26));
+          next = cur.slice(0, pos) + rep + cur.slice(pos + 1);
+        } else if (r < 0.82) {
+          next = fullCorrupt(cur);
+        } else {
+          next = cur.split("").sort(() => Math.random() - 0.5).join("");
+        }
+
+        setInputValue(next);
+        inputValueRef.current = next;
+      }, delay);
+    }
+  }, [isCheatOn]);
+
+  const handleInputKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Backspace") backspaceUsedRef.current = true;
+      if (e.key === "Enter") handleNameSubmit();
     },
     [],
   );
 
-  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace") backspaceUsedRef.current = true;
-    if (e.key === "Enter") handleNameSubmit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleNameSubmit = useCallback(() => {
     if (stage3StatusRef.current !== "typing") return;
+
+    if (isCheatOn) {
+      const finalName = inputValueRef.current.trim() || "Admin";
+      setUserName(finalName);
+      setSlowpokeName(finalName);
+      setStage(4);
+      return;
+    }
 
     if (corruptTimerRef.current) {
       clearTimeout(corruptTimerRef.current);
@@ -781,11 +1349,19 @@ export default function SystemPopup() {
         }
       }, 1400);
     }, 1100);
-  }, [setS3]);
+  }, [setS3, isCheatOn]);
+
+  const handleSlowpokeNext = useCallback(() => {
+    setStage(4);
+  }, []);
+
+  /* ──────────────────────────────────────
+     STAGE 5 - MATHS
+  ───────────────────────────────────── */
 
   const handleMathMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (mathStatus !== "playing" || skipPopupOpen) return;
+      if (mathStatus !== "playing" || isCheatOn) return;
 
       rewardRefs.current.forEach((btn, idx) => {
         if (!btn) return;
@@ -807,24 +1383,32 @@ export default function SystemPopup() {
         }
       });
     },
-    [mathStatus, skipPopupOpen],
+    [mathStatus, isCheatOn],
   );
 
   const handleMathMouseDown = useCallback(() => {
-    if (mathStatus !== "playing" || skipPopupOpen) return;
-
+    if (mathStatus !== "playing" || isCheatOn) return;
     if (Math.random() < 0.35) {
       setMathOptions((prev) => shuffle(prev));
     }
-  }, [mathStatus, skipPopupOpen]);
+  }, [mathStatus, isCheatOn]);
 
   const handleMathOptionClick = useCallback(
     (value: number) => {
-      if (mathStatus !== "playing" || skipPopupOpen) return;
+      if (mathStatus !== "playing") return;
 
       if (mathIdleTauntRef.current) {
         clearTimeout(mathIdleTauntRef.current);
         mathIdleTauntRef.current = null;
+      }
+
+      if (isCheatOn) {
+        if (value === mathQuestion.correct) {
+          setMathStatus("pass");
+          setMathTaunt("");
+          setTimeout(() => setStage(6), 350);
+        }
+        return;
       }
 
       const elapsed = Date.now() - mathStartAtRef.current;
@@ -848,18 +1432,13 @@ export default function SystemPopup() {
           setMathTaunt(
             Math.random() < 0.5
               ? "Correct... but why are you so slow?"
-              : MATH_TAUNTS[Math.floor(Math.random() * MATH_TAUNTS.length)],
+              : getRandomFrom(MATH_TAUNTS),
           );
 
           const nextQ = generateMathQuestion();
-
           mathTauntTimerRef.current = setTimeout(() => {
             setMathQuestion(nextQ);
-            setMathOptions((prev) => {
-              const preserved = value;
-              const filtered = nextQ.options.filter((n) => n !== preserved);
-              return shuffle([preserved, ...filtered.slice(0, 3)]);
-            });
+            setMathOptions(nextQ.options);
             setMathOptionPos([
               { x: 0, y: 0 },
               { x: 0, y: 0 },
@@ -869,22 +1448,14 @@ export default function SystemPopup() {
             setMathStatus("playing");
             setMathTaunt("");
             mathStartAtRef.current = Date.now();
-
-            mathIdleTauntRef.current = setTimeout(() => {
-              setMathTaunt(
-                MATH_TAUNTS[Math.floor(Math.random() * MATH_TAUNTS.length)],
-              );
-            }, 2500);
           }, 1200);
-
           return;
         }
 
         setMathStatus("taunt");
-        setMathTaunt(MATH_TAUNTS[Math.floor(Math.random() * MATH_TAUNTS.length)]);
+        setMathTaunt(getRandomFrom(MATH_TAUNTS));
 
         const nextQ = generateMathQuestion();
-
         mathTauntTimerRef.current = setTimeout(() => {
           setMathQuestion(nextQ);
           setMathOptions(nextQ.options);
@@ -897,16 +1468,10 @@ export default function SystemPopup() {
           setMathStatus("playing");
           setMathTaunt("");
           mathStartAtRef.current = Date.now();
-
-          mathIdleTauntRef.current = setTimeout(() => {
-            setMathTaunt(
-              MATH_TAUNTS[Math.floor(Math.random() * MATH_TAUNTS.length)],
-            );
-          }, 2500);
         }, 1200);
       }, 500);
     },
-    [mathStatus, mathQuestion, skipPopupOpen],
+    [mathStatus, mathQuestion, isCheatOn],
   );
 
   const handleSkipMathStage = useCallback(() => {
@@ -914,11 +1479,14 @@ export default function SystemPopup() {
     setStage5Mode("skip");
   }, []);
 
-  const handleSkipPopupNext = useCallback(() => {
-    setSkipPopupOpen(false);
+  const handleSkipMathPopupNext = useCallback(() => {
     setStage5Mode("math");
     setStage(6);
   }, []);
+
+  /* ──────────────────────────────────────
+     STAGE 6 - TYPE VERIFICATION
+  ───────────────────────────────────── */
 
   const handleTypeInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -929,45 +1497,64 @@ export default function SystemPopup() {
         typeCorruptRef.current = null;
       }
 
-      const newVal = e.target.value;
+      const raw = e.target.value;
+
+      if (isCheatOn) {
+        setTypeInput(raw);
+        setTypeInputVisible(raw);
+        typeInputRef.current = raw;
+        return;
+      }
+
       const r = Math.random();
 
       const commit = (v: string) => {
         setTypeInput(v);
+        setTypeInputVisible(v);
         typeInputRef.current = v;
 
-        if (v.length >= 4 && Math.random() < 0.2) {
+        if (v.length >= 3 && Math.random() < 0.38) {
           typeCorruptRef.current = setTimeout(() => {
             typeCorruptRef.current = null;
             const cur = typeInputRef.current;
             if (!cur.length) return;
 
-            if (Math.random() < 0.55) {
-              const next = cur.slice(0, -1);
-              setTypeInput(next);
-              typeInputRef.current = next;
-            } else {
+            const mode = Math.random();
+            let next = cur;
+
+            if (mode < 0.22) {
+              next = cur.slice(0, -1);
+            } else if (mode < 0.45) {
+              const pos = Math.floor(Math.random() * cur.length);
+              const junk =
+                CORRUPT_CHARS[Math.floor(Math.random() * CORRUPT_CHARS.length)];
+              next = cur.slice(0, pos) + junk + cur.slice(pos + 1);
+            } else if (mode < 0.7) {
               const last = cur[cur.length - 1];
               const lower = last.toLowerCase();
               const rep = NEIGHBORS[lower] ?? "x";
               const replaced =
                 last === last.toUpperCase() ? rep.toUpperCase() : rep;
-              const next = cur.slice(0, -1) + replaced;
-              setTypeInput(next);
-              typeInputRef.current = next;
+              next = cur.slice(0, -1) + replaced;
+            } else {
+              next = fullCorrupt(cur);
             }
-          }, 150 + Math.random() * 200);
+
+            setTypeInput(next);
+            setTypeInputVisible(next);
+            typeInputRef.current = next;
+          }, 90 + Math.random() * 120);
         }
       };
 
-      if (r < 0.04) return;
-      if (r < 0.12) {
-        setTimeout(() => commit(newVal), 70 + Math.random() * 90);
+      if (r < 0.05) return;
+      if (r < 0.16) {
+        setTimeout(() => commit(raw), 60 + Math.random() * 80);
       } else {
-        commit(newVal);
+        commit(raw);
       }
     },
-    [typeStatus],
+    [typeStatus, isCheatOn],
   );
 
   const handleTypeSubmit = useCallback(() => {
@@ -979,37 +1566,259 @@ export default function SystemPopup() {
     }
 
     setTypeStatus("checking");
-    const newAttempts = typeAttempts + 1;
-    setTypeAttempts(newAttempts);
+
+    const submitted = typeInputRef.current.trim();
+    const expected = typePhrase.internal.trim();
 
     setTimeout(() => {
-      if (newAttempts >= 3) {
+      if (isCheatOn || submitted === expected) {
         setTypeStatus("granted");
-        setTimeout(() => {
-          setTypeStatus("failed");
-          setTimeout(() => setStage(7), 1800);
-        }, 750);
-      } else {
-        setTypeStatus("incorrect");
-        setTimeout(() => {
-          setTypeInput("");
-          typeInputRef.current = "";
-          setTypeStatus("typing");
-        }, 1600);
+        setTypeErrorText("");
+        setTimeout(() => setStage(7), isCheatOn ? 250 : 900);
+        return;
       }
+
+      setTypeStatus("incorrect");
+      setTypeErrorFlash(true);
+      setTypeErrorText(
+        getRandomFrom([
+          "Verification mismatch.",
+          "Phrase does not match.",
+          "Input rejected.",
+          "Wrong sequence detected.",
+          "Access string invalid.",
+        ]),
+      );
+
+      const corrupted = fullCorrupt(submitted || "NULL");
+      setTypeInput(corrupted);
+      setTypeInputVisible(corrupted);
+      typeInputRef.current = corrupted;
+
+      setTimeout(() => {
+        setTypeErrorFlash(false);
+        setTypeInput("");
+        setTypeInputVisible("");
+        typeInputRef.current = "";
+        setTypeStatus("typing");
+      }, 1400);
     }, 900);
-  }, [typeStatus, typeAttempts]);
+  }, [typeStatus, typePhrase, isCheatOn]);
 
-  const handleClaim = useCallback(() => {
-    if (stage7Phase !== "granted" || pendingAction || btnJammed) return;
+  /* ──────────────────────────────────────
+     STAGE 7 - BUTTON BOSS
+  ───────────────────────────────────── */
 
-    setPendingAction(true);
-    setTimeout(() => {
-      setPendingAction(false);
-      setStage7Phase("claiming");
-      setTimeout(() => setStage7Phase("final"), 420);
-    }, 650);
-  }, [stage7Phase, pendingAction, btnJammed]);
+  const handleButtonBossClick = useCallback(
+    (isReal = true) => {
+      if (buttonBossPhase === "pass") return;
+
+      switch (buttonBossLevel) {
+        case 1: {
+          const cheatMode = adminUnlocked && adminCheatStage7;
+          const now = Date.now();
+
+          if (!cheatMode && now - fakeHonestyLastClickRef.current < 280) {
+            setButtonBossTaunt("Desperation clicking detected.");
+            break;
+          }
+
+          fakeHonestyLastClickRef.current = now;
+
+          let next = fakeHonestyCount + 1;
+
+          // fake near-success once
+          if (
+            !cheatMode &&
+            !fakeHonestyFakeoutUsed &&
+            next === fakeHonestyTarget - 1
+          ) {
+            setFakeHonestyCount(next);
+            setFakeHonestyFakeoutUsed(true);
+            setButtonBossPhase("pass");
+            setButtonBossTaunt("");
+
+            setTimeout(() => {
+              setButtonBossPhase("idle");
+              setFakeHonestyCount((prev) => Math.max(0, prev - 2));
+              setButtonBossTaunt("Rechecking sincerity... score reduced.");
+            }, 650);
+
+            break;
+          }
+
+          // occasional suspicion penalty
+          if (!cheatMode && next >= 3 && Math.random() < 0.35) {
+            next = Math.max(0, next - 2);
+            setFakeHonestyCount(next);
+            setButtonBossTaunt("Suspicion detected. Honesty score reduced.");
+            break;
+          }
+
+          if (next >= fakeHonestyTarget) {
+            advanceButtonBossLevel();
+          } else {
+            setFakeHonestyCount(next);
+            setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.fakeHonesty));
+          }
+          break;
+        }
+
+        case 2: {
+          if (!isCheatOn && shrinkPhase === "second") {
+            setButtonBossTaunt("You actually caught it.");
+          }
+          advanceButtonBossLevel();
+          break;
+        }
+
+        case 3: {
+          if (isReal) {
+            const nextHits = multiHits + 1;
+            if (nextHits >= multiRequiredHits) {
+              advanceButtonBossLevel();
+            } else {
+              setMultiHits(nextHits);
+              setButtonBossTaunt("One real button found. Again.");
+              setMultiButtons(buildMultiButtons(1, isCheatOn ? 6 : 9));
+            }
+          } else {
+            setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.multiplying));
+            setMultiHits(0);
+            setMultiButtons(buildMultiButtons(1, isCheatOn ? 6 : 9));
+          }
+          break;
+        }
+
+        case 4: {
+          if (!delayTrapStarted) {
+            setDelayTrapStarted(true);
+            setButtonBossTaunt("Not yet.");
+
+            setTimeout(() => {
+              setDelayTrapReady(true);
+              setButtonBossTaunt("Now.");
+            }, isCheatOn ? 280 : 1200);
+
+            setTimeout(() => {
+              setDelayTrapReady(false);
+              setDelayTrapStarted(false);
+              setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.delay));
+            }, isCheatOn ? 1900 : 1450);
+
+            return;
+          }
+
+          if (delayTrapReady) {
+            advanceButtonBossLevel();
+          } else {
+            setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.delay));
+          }
+          break;
+        }
+
+        case 6: {
+          if (rhythmActive) {
+            const need = isCheatOn ? 1 : 4;
+            const nextHits = rhythmHits + 1;
+            setRhythmHits(nextHits);
+
+            if (nextHits >= need) {
+              advanceButtonBossLevel();
+            }
+          } else {
+            setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.rhythm));
+            setRhythmHits(0);
+          }
+          break;
+        }
+
+        case 7: {
+          setStaminaValue((prev) => {
+            const gain = isCheatOn ? 50 : 11;
+            const next = Math.min(100, prev + gain);
+
+            if (next >= 100) {
+              setTimeout(() => advanceButtonBossLevel(), 200);
+            } else {
+              setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.stamina));
+            }
+
+            return next;
+          });
+          break;
+        }
+
+        case 8: {
+          if (oneFrameVisible) {
+            const need = isCheatOn ? 1 : 2;
+            const nextHits = oneFrameHits + 1;
+            setOneFrameHits(nextHits);
+
+            if (nextHits >= need) {
+              advanceButtonBossLevel();
+            } else {
+              setButtonBossTaunt("Again.");
+              setOneFrameVisible(false);
+            }
+          } else {
+            setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.oneFrame));
+          }
+          break;
+        }
+
+        default:
+          break;
+      }
+    },
+    [
+      buttonBossLevel,
+      buttonBossPhase,
+      shrinkPhase,
+      fakeHonestyCount,
+      fakeHonestyTarget,
+      fakeHonestyFakeoutUsed,
+      advanceButtonBossLevel,
+      adminUnlocked,
+      adminCheatStage7,
+      isCheatOn,
+      multiHits,
+      multiRequiredHits,
+      delayTrapStarted,
+      delayTrapReady,
+      rhythmActive,
+      rhythmHits,
+      oneFrameVisible,
+      oneFrameHits,
+    ],
+  );
+
+  const handleButtonBossHoldStart = useCallback(() => {
+    if (buttonBossLevel !== 5) return;
+    setButtonBossTaunt("");
+    setIsHoldingBoss(true);
+  }, [buttonBossLevel]);
+
+  const handleButtonBossHoldEnd = useCallback(() => {
+    if (buttonBossLevel !== 5) return;
+    if (holdProgress < 100) {
+      setIsHoldingBoss(false);
+      setHoldProgress(0);
+      setButtonBossTaunt(getRandomFrom(BUTTON_TAUNTS.hold));
+    }
+  }, [buttonBossLevel, holdProgress]);
+
+  /* ──────────────────────────────────────
+     REWARDS PAGE
+  ───────────────────────────────────── */
+
+  const handleClaimRewards = useCallback(() => {
+    setShowRewards(true);
+  }, []);
+
+  /* ──────────────────────────────────────
+     ADMIN
+  ───────────────────────────────────── */
 
   const handleAdminTrigger = useCallback(() => {
     setAdminOpen(true);
@@ -1039,19 +1848,14 @@ export default function SystemPopup() {
     setIsGlitching(false);
     setPendingAction(false);
     setBtnJammed(false);
-    setStage((prev) => {
-      const n = Math.min(prev + 1, MAX_STAGE);
-      if (n === MAX_STAGE) stageFinalDirect.current = true;
-      return n;
-    });
+    setStage((prev) => Math.min(prev + 1, MAX_STAGE));
   }, []);
 
-  const handleSkipToFinal = useCallback(() => {
+  const handleSkipToRewards = useCallback(() => {
     setIsGlitching(false);
     setPendingAction(false);
     setBtnJammed(false);
-    stageFinalDirect.current = true;
-    setStage(MAX_STAGE);
+    setShowRewards(true);
     setAdminOpen(false);
   }, []);
 
@@ -1059,7 +1863,7 @@ export default function SystemPopup() {
     setIsGlitching(false);
     setPendingAction(false);
     setBtnJammed(false);
-    if (s === MAX_STAGE) stageFinalDirect.current = true;
+    setShowRewards(false);
     setStage(s);
     setAdminJumpOpen(false);
     setAdminOpen(false);
@@ -1071,92 +1875,150 @@ export default function SystemPopup() {
     setIsGlitching(true);
   }, [isGlitching]);
 
+  const handleAdminSkipBossLevel = useCallback(() => {
+    if (stage !== 7) return;
+    if (buttonBossLevel >= 8) {
+      setShowRewards(true);
+      return;
+    }
+    resetButtonBossLevel((buttonBossLevel + 1) as ButtonBossLevel);
+  }, [stage, buttonBossLevel, resetButtonBossLevel]);
+
   const handleReset = useCallback(() => {
     setStage(1);
-    setIsGlitching(false);
-    setTranslate({ x: 0, y: 0 });
-    setPendingAction(false);
-    setBtnJammed(false);
+    setShowRewards(false);
+
     setAdminOpen(false);
     setAdminUnlocked(false);
     setAdminJumpOpen(false);
+    setAdminPassword("");
+    setAdminError(false);
+    setAdminAssist(false);
+
+    setIsGlitching(false);
+    setCorruptText("");
+    setPendingAction(false);
+    setBtnJammed(false);
+
     setUserName("");
-    setSlowpokeName("");
     setAssignedTitle(null);
-    setSkipPopupOpen(false);
-    setStage5Mode("math");
-  }, []);
 
-  const handleSpiritMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      setIsDraggingSpirit(true);
+    setStage1Phase("first");
+    setExplosionPos({ x: 0, y: 0 });
+    setTranslate({ x: 0, y: 0 });
 
-      spiritDragOffsetRef.current = {
-        x: e.clientX - spiritPos.x,
-        y: e.clientY - spiritPos.y,
-      };
-    },
-    [spiritPos],
-  );
+    setIsRecalculating(false);
 
-  useEffect(() => {
-    if (!isDraggingSpirit) return;
+    setInputValue("");
+    setInputDisabled(false);
+    setStage3Status("typing");
+    setSlowpokeName("");
+    setNameTimer(3);
 
-    const handleMove = (e: MouseEvent) => {
-      setSpiritPos({
-        x: e.clientX - spiritDragOffsetRef.current.x,
-        y: e.clientY - spiritDragOffsetRef.current.y,
-      });
-    };
+    setStage4Phase("filling");
 
-    const handleUp = () => {
-      setIsDraggingSpirit(false);
-    };
+    setMathQuestion(generateMathQuestion());
+    setMathStatus("playing");
+    setMathTaunt("");
+    setMathOptions([]);
+    setMathOptionPos([
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+    ]);
 
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
+    setTypeInput("");
+    setTypeInputVisible("");
+    setTypeStatus("typing");
+    setTypePhrase(TYPE_PHRASES[0]);
+    setTypeErrorFlash(false);
+    setTypeErrorText("");
 
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
-    };
-  }, [isDraggingSpirit]);
+    setEyeVisible(false);
+    setEyeIntroActive(false);
+    setEyeArrivalGlitch(false);
 
-  const bodyFlicker = stage === 7 && stage7Phase === "claiming";
-  const baseName = userName.trim() ? userName : "Hunter";
-  const displayName = assignedTitle ? `${baseName} the ${assignedTitle}` : baseName;
+    resetButtonBossLevel(1);
+  }, [resetButtonBossLevel]);
+
+  /* ──────────────────────────────────────
+     REWARDS PAGE RENDER
+  ───────────────────────────────────── */
+
+  if (showRewards) {
+    return (
+      <div className="screen">
+        <div className="popup">
+          <div className="popup-header">
+            <span className="system-badge">SYSTEM</span>
+          </div>
+
+          <div className="popup-body">
+            <p className="system-message reward-granted-msg" style={{ opacity: 1 }}>
+              <span className="bracket-green">[SYSTEM]</span> Reward granted.
+            </p>
+            <p className="system-message" style={{ opacity: 1, marginTop: 14 }}>
+              Reward? idk go study {displayName}.
+            </p>
+            <p className="retry-text" style={{ opacity: 1 }}>
+              HA you got tricked! Was it worth it? Hope you got rage baited
+              𓂁𓂄 ‿ 𓂁𓂄.
+            </p>
+          </div>
+
+          <div className="popup-footer">
+            <button className="accept-btn" onClick={handleReset}>
+              Restart
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ──────────────────────────────────────
+     MAIN RENDER
+  ───────────────────────────────────── */
 
   return (
-        <div
-          className={`screen${isGlitching ? " screen--flash" : ""}${eyeArrivalGlitch ? " screen--eye-arrival" : ""}`}
-          onMouseMove={handlePopupMouseMove}
-        >
-          
-        {/*cat*/}
-        <div className="floating-cat floating-cat--one" aria-hidden="true">
-          /ᐠ - ˕ -マ
-        </div>
-        <div className="floating-cat floating-cat--two" aria-hidden="true">
-          ₍^. .^₎⟆
-        </div>
+    <div
+      className={`screen${isGlitching ? " screen--flash" : ""}${
+        eyeArrivalGlitch ? " screen--eye-arrival" : ""
+      }`}
+      onMouseMove={handlePopupMouseMove}
+    >
+      <div className="floating-cat floating-cat--one" aria-hidden="true">
+        /ᐠ - ˕ -マ
+      </div>
+      <div className="floating-cat floating-cat--two" aria-hidden="true">
+        ₍^. .^₎⟆
+      </div>
 
-        <div className="cat-sparkle cat-sparkle--one" aria-hidden="true">Err ⃝or⃟⃤</div>
-        <div className="cat-sparkle cat-sparkle--two" aria-hidden="true">✧</div>
-        <div className="cat-sparkle cat-sparkle--three" aria-hidden="true">⋆</div>
+      <div className="cat-sparkle cat-sparkle--one" aria-hidden="true">
+        Err ⃝or⃟⃤
+      </div>
+      <div className="cat-sparkle cat-sparkle--two" aria-hidden="true">
+        ✧
+      </div>
+      <div className="cat-sparkle cat-sparkle--three" aria-hidden="true">
+        ⋆
+      </div>
 
-        <div className="system-orb system-orb--one" aria-hidden="true" />
-        <div className="system-orb system-orb--two" aria-hidden="true" />
+      <div className="system-orb system-orb--one" aria-hidden="true" />
+      <div className="system-orb system-orb--two" aria-hidden="true" />
 
-        <div className="data-particle data-particle--one" aria-hidden="true">01</div>
-        <div className="data-particle data-particle--two" aria-hidden="true">◇</div>
-        <div className="data-particle data-particle--three" aria-hidden="true">Х̶̿̀͊̍̈́͑̓̈́̃̆́</div>
-        
-        <div
-          className="admin-trigger"
-          onClick={handleAdminTrigger}
-          aria-hidden="true"
-        />
+      <div className="data-particle data-particle--one" aria-hidden="true">
+        01
+      </div>
+      <div className="data-particle data-particle--two" aria-hidden="true">
+        ◇
+      </div>
+      <div className="data-particle data-particle--three" aria-hidden="true">
+        Х̶̿̀͊̍̈́͑̓̈́̃̆́
+      </div>
+
+      <div className="admin-trigger" onClick={handleAdminTrigger} aria-hidden="true" />
 
       {adminOpen && (
         <div className="admin-popup">
@@ -1170,8 +2032,7 @@ export default function SystemPopup() {
           {!adminUnlocked ? (
             <div className="admin-popup-body">
               <p className="admin-message">
-                <span className="bracket">[SYSTEM]</span> Developer access
-                detected.
+                <span className="bracket">[SYSTEM]</span> Developer access detected.
               </p>
               <p className="admin-message" style={{ marginTop: 4 }}>
                 <span className="bracket">[SYSTEM]</span> Enter override key.
@@ -1199,22 +2060,30 @@ export default function SystemPopup() {
             </div>
           ) : (
             <div className="admin-popup-body">
-              {eyeVisible && (
-                <div
-                  className={`ai-eye${eyeIntroActive ? " ai-eye--intro" : ""}`}
-                  aria-hidden="true"
-                >
-                  <div className="ai-eye-shape" />
-                  <div className="ai-eye-outline" />
-                  <div className="ai-eye-pupil" />
-                </div>
-              )}
               <p className="admin-message admin-message--success">
-                <span className="bracket">[SYSTEM]</span> Admin mode active.
-                Stage {stage}/{MAX_STAGE}.
+                <span className="bracket">[SYSTEM]</span> Admin mode active. Stage{" "}
+                {stage}/{MAX_STAGE}.
               </p>
 
               <div className="admin-controls">
+                <button
+                  className="admin-btn admin-btn--full"
+                  onClick={() => setAdminAssist((v) => !v)}
+                >
+                  Testing Assist: {adminAssist ? "ON" : "OFF"}
+                </button>
+
+                <button
+                  className={`admin-btn admin-btn--full ${
+                    adminCheatAccept ? "admin-btn--active" : ""
+                  }`}
+                  onClick={() => setAdminCheatAccept((prev) => !prev)}
+                >
+                  {adminCheatAccept
+                    ? "[TEST MODE: ACCEPT EASY]"
+                    : "[TEST MODE: ACCEPT HARD]"}
+                </button>
+
                 <button
                   className="admin-btn admin-btn--full"
                   onClick={handleSkipNext}
@@ -1223,12 +2092,17 @@ export default function SystemPopup() {
                   Skip to Next Stage
                 </button>
 
-                <button
-                  className="admin-btn admin-btn--full"
-                  onClick={handleSkipToFinal}
-                  disabled={stage >= MAX_STAGE}
-                >
-                  Skip to Final Stage
+                {stage === 7 && (
+                  <button
+                    className="admin-btn admin-btn--full"
+                    onClick={handleAdminSkipBossLevel}
+                  >
+                    Next level for Stage 7
+                  </button>
+                )}
+
+                <button className="admin-btn admin-btn--full" onClick={handleSkipToRewards}>
+                  Skip to Rewards Page
                 </button>
 
                 <button
@@ -1240,17 +2114,19 @@ export default function SystemPopup() {
 
                 {adminJumpOpen && (
                   <div className="admin-jump-grid">
-                    {Array.from({ length: MAX_STAGE }, (_, i) => i + 1).map(
-                      (s) => (
-                        <button
-                          key={s}
-                          className={`admin-jump-btn${s === stage ? " admin-jump-btn--active" : ""}`}
-                          onClick={() => handleJumpToStage(s)}
-                        >
-                          {s}
-                        </button>
-                      ),
-                    )}
+                    {Array.from({ length: MAX_STAGE }, (_, i) => i + 1).map((s) => (
+                      <button
+                        key={s}
+                        className={`admin-jump-btn${
+                          s === stage ? " admin-jump-btn--active" : ""
+                        }`}
+                        onClick={() => handleJumpToStage(s)}
+                      >
+                        {s}
+                      </button>
+
+                    
+                    ))}
                   </div>
                 )}
 
@@ -1274,38 +2150,33 @@ export default function SystemPopup() {
         </div>
       )}
 
-      <div
-        className={`popup${isGlitching ? " popup--glitch" : ""}`}
-        ref={popupRef}
-      >
+      <div className={`popup${isGlitching ? " popup--glitch" : ""}`} ref={popupRef}>
         {isGlitching && <div className="scan-bar" />}
 
         <div className="popup-header">
           <span className="system-badge">SYSTEM</span>
         </div>
 
-            <div className={`popup-body${bodyFlicker ? " popup-body--flicker" : ""}`}>
+        <div className="popup-body">
+          {stage >= 5 && eyeVisible && (
+            <div className={`ai-eye${eyeIntroActive ? " ai-eye--intro" : ""}`} aria-hidden="true">
+              <div className="ai-eye-shape" />
+              <div className="ai-eye-outline" />
+              <div className="ai-eye-pupil" />
+            </div>
+          )}
 
-            {stage === 5 && eyeVisible && (
-              <div
-                className={`ai-eye${eyeIntroActive ? " ai-eye--intro" : ""}`}
-                aria-hidden="true"
-              >
-                <div className="ai-eye-shape" />
-                <div className="ai-eye-outline" />
-                <div className="ai-eye-pupil" />
-              </div>
-            )}
-
-            {stage === 1 && !isGlitching && (
-            <p className="system-message" key="s1">
+          {/* Stage 1 - Accept button */}
+          {stage === 1 && !isGlitching && (
+            <p className="system-message" style={{ opacity: 1 }}>
               <span className="bracket">[SYSTEM]</span> Daily quest unlocked.
             </p>
           )}
 
+          {/* Glitch overlay content */}
           {isGlitching && (
             <>
-              <p className="system-message glitch-text" key="glitch">
+              <p className="system-message glitch-text" style={{ opacity: 1 }}>
                 <span className="bracket">[SYSTEM]</span>{" "}
                 <span className="corrupt-chars">{corruptText}</span>
               </p>
@@ -1318,72 +2189,67 @@ export default function SystemPopup() {
             </>
           )}
 
+          {/* Stage 2 - Recalculating */}
           {stage === 2 && !isGlitching && isRecalculating && (
-            <p className="system-message recalc-msg" key="s2a">
-              <span className="bracket">[SYSTEM]</span> Recalculating mission
-              difficulty...
+            <p className="system-message recalc-msg" style={{ opacity: 1 }}>
+              <span className="bracket">[SYSTEM]</span> Recalculating mission difficulty...
             </p>
           )}
 
           {stage === 2 && !isGlitching && !isRecalculating && (
-            <p className="system-message" key="s2b">
-              <span className="bracket">[SYSTEM]</span> Hidden penalty
-              activated.
+            <p className="system-message" style={{ opacity: 1 }}>
+              <span className="bracket">[SYSTEM]</span> Hidden penalty activated.
             </p>
           )}
 
+          {/* Stage 3 - Name typing */}
           {stage === 3 && (
-            <div key="s3" className="stage-block">
+            <div className="stage-block">
               {stage3Status !== "slowpoke" && (
-                <p className="system-message">
+                <p className="system-message" style={{ opacity: 1 }}>
                   {stage3Status === "validating" ? (
                     <>
                       <span className="bracket">[SYSTEM]</span> Validating...
                     </>
                   ) : (
                     <>
-                      <span className="bracket">[SYSTEM]</span> Identity
-                      verification required.
+                      <span className="bracket">[SYSTEM]</span> Identity verification required.
                     </>
                   )}
                 </p>
               )}
 
               {stage3Status === "invalid" && (
-                <p className="s3-status-msg s3-status-msg--error">
-                  <span className="bracket-red">[SYSTEM]</span> Invalid name
-                  input.
+                <p className="s3-status-msg s3-status-msg--error" style={{ opacity: 1 }}>
+                  <span className="bracket-red">[SYSTEM]</span> Invalid name input.
                 </p>
               )}
 
               {stage3Status === "expired" && (
-                <p className="s3-status-msg s3-status-msg--error">
+                <p className="s3-status-msg s3-status-msg--error" style={{ opacity: 1 }}>
                   <span className="bracket-red">[SYSTEM]</span> Session expired.
                 </p>
               )}
 
               {stage3Status === "slowpoke" && (
                 <div className="slowpoke-wrap">
-                  <p className="system-message slowpoke-title">
-                    <span className="bracket">[SYSTEM]</span> Identity
-                    verification required.
+                  <p className="system-message slowpoke-title" style={{ opacity: 1 }}>
+                    <span className="bracket">[SYSTEM]</span> Identity verification required.
                   </p>
 
                   <div className="slowpoke-box">
                     <div className="slowpoke-cat-col">
                       <span className="slowpoke-cat" aria-hidden="true">
-                        zᶻ
-                        ≽₍^_ ‸ _ ^₎≼⟆
+                        zᶻ ≽₍^_ ‸ _ ^₎≼⟆
                       </span>
                       <span className="slowpoke-zzz">z z z</span>
                     </div>
 
                     <div className="slowpoke-content">
                       <p className="slowpoke-msg">
-                        Damn, you type so slow that I thought about taking a nap
-                        while waiting for you to finish typing your name... but
-                        oh well, welcome,{" "}
-                        <span className="slowpoke-name">{slowpokeName}</span>, I
+                        Damn, you type so slow that I thought about taking a nap while
+                        waiting for you to finish typing your name... but oh well,
+                        welcome, <span className="slowpoke-name">{slowpokeName}</span>, I
                         guess.
                       </p>
                     </div>
@@ -1409,18 +2275,17 @@ export default function SystemPopup() {
                     autoFocus
                   />
                   {inputDisabled && (
-                    <p className="input-warning">
-                      &gt; INPUT TEMPORARILY DISABLED
-                    </p>
+                    <p className="input-warning">&gt; INPUT TEMPORARILY DISABLED</p>
                   )}
                 </div>
               )}
             </div>
           )}
 
+          {/* Stage 4 - Fake loading */}
           {stage === 4 && (
-            <div key="s4" className="stage-block">
-              <p className="system-message">
+            <div className="stage-block">
+              <p className="system-message" style={{ opacity: 1 }}>
                 <span className="bracket">[SYSTEM]</span>{" "}
                 {stage4Phase === "error"
                   ? `Unexpected error occurred, ${displayName}.`
@@ -1429,9 +2294,7 @@ export default function SystemPopup() {
               <div className="fake-bar-wrap">
                 <div className={`fake-bar fake-bar--${stage4Phase}`} />
               </div>
-              <p
-                className={`bar-pct${stage4Phase === "error" ? " bar-pct--error" : ""}`}
-              >
+              <p className={`bar-pct${stage4Phase === "error" ? " bar-pct--error" : ""}`}>
                 {stage4Phase === "error"
                   ? "ERR_0x4F2A"
                   : stage4Phase === "stuck"
@@ -1441,13 +2304,12 @@ export default function SystemPopup() {
             </div>
           )}
 
+          {/* Stage 5 - Maths */}
           {stage === 5 && (
-            <div key="s5" className="stage-block">
-
-              {/* 🔥 SKIP MODE (acts like slowpoke) */}
-              {stage5Mode === "skip" && (
+            <div className="stage-block">
+              {stage5Mode === "skip" ? (
                 <>
-                  <p className="system-message">
+                  <p className="system-message" style={{ opacity: 1 }}>
                     <span className="bracket">[SYSTEM]</span> Shortcut detected.
                   </p>
 
@@ -1461,24 +2323,20 @@ export default function SystemPopup() {
                         <p className="slowpoke-msg">
                           You skipped a basic maths challenge.
                           <br />
-                          That was… disappointing.
-                          <br /><br />
-                          You are now,
+                          That was... disappointing.
                           <br />
-                          <span className="slowpoke-name">
-                            {displayName}
-                          </span>
+                          <br />
+                          You have received the title,
+                          <br />
+                          <span className="slowpoke-name">{displayName}</span>
                         </p>
                       </div>
                     </div>
                   </div>
                 </>
-              )}
-
-              {/* 🔥 NORMAL MATH MODE */}
-              {stage5Mode === "math" && (
+              ) : (
                 <>
-                  <p className="system-message">
+                  <p className="system-message" style={{ opacity: 1 }}>
                     <span className="bracket">[SYSTEM]</span> Solve this, {displayName}.
                   </p>
 
@@ -1493,28 +2351,37 @@ export default function SystemPopup() {
                   )}
 
                   {mathStatus === "pass" ? (
-                    <p className="system-message type-granted-msg">
+                    <p className="system-message type-granted-msg" style={{ opacity: 1 }}>
                       <span className="bracket-green">[SYSTEM]</span> Correct. Proceeding...
                     </p>
                   ) : (
                     <>
                       <div className="reward-btns" onMouseMove={handleMathMouseMove}>
-                        {mathOptions.map((value, idx) => (
-                          <button
-                            key={`${mathQuestion.prompt}-${idx}-${value}`}
-                            ref={(el) => {
-                              rewardRefs.current[idx] = el;
-                            }}
-                            className="reward-btn"
-                            style={{
-                              transform: `translate(${mathOptionPos[idx]?.x ?? 0}px, ${mathOptionPos[idx]?.y ?? 0}px)`,
-                            }}
-                            onMouseDown={handleMathMouseDown}
-                            onClick={() => handleMathOptionClick(value)}
-                          >
-                            {pendingAction ? "..." : value}
-                          </button>
-                        ))}
+                        {displayedMathOptions.map((value, idx) => {
+                          const showCorrectHint =
+                            isCheatOn &&
+                            mathStatus === "playing" &&
+                            value === mathQuestion.correct;
+
+                          return (
+                            <button
+                              key={`${mathQuestion.prompt}-${idx}-${value}`}
+                              ref={(el) => {
+                                rewardRefs.current[idx] = el;
+                              }}
+                              className={`reward-btn${showCorrectHint ? " reward-btn--correct" : ""}`}
+                              style={{
+                                transform: `translate(${mathOptionPos[idx]?.x ?? 0}px, ${
+                                  mathOptionPos[idx]?.y ?? 0
+                                }px)`,
+                              }}
+                              onMouseDown={handleMathMouseDown}
+                              onClick={() => handleMathOptionClick(value)}
+                            >
+                              {pendingAction ? "..." : value}
+                            </button>
+                          );
+                        })}
                       </div>
 
                       <button
@@ -1528,38 +2395,49 @@ export default function SystemPopup() {
                   )}
                 </>
               )}
-
             </div>
           )}
 
+          {/* Stage 6 - Phrase typing */}
           {stage === 6 && (
-            <div key="s6" className="stage-block">
+            <div className="stage-block">
               {(typeStatus === "typing" || typeStatus === "incorrect") && (
                 <>
-                  <p className="system-message">
-                    <span className="bracket">[SYSTEM]</span> Type the following
-                    to proceed, {displayName}:
+                  <p className="system-message" style={{ opacity: 1 }}>
+                    <span className="bracket">[SYSTEM]</span> Type the following to
+                    proceed, {displayName}:
                   </p>
 
                   <div className="type-phrase-box">
                     <span className="type-phrase">{typePhrase.display}</span>
                   </div>
+
+                  {isCheatOn && (
+                    <p className="retry-text" style={{ opacity: 1 }}>
+                      Exact phrase: {typePhrase.internal}
+                    </p>
+                  )}
                 </>
               )}
 
               {typeStatus === "incorrect" && (
-                <p className="s3-status-msg s3-status-msg--error">
-                  <span className="bracket-red">[SYSTEM]</span> 1 character
-                  incorrect.
+                <p
+                  className={`s3-status-msg s3-status-msg--error${
+                    typeErrorFlash ? " s3-status-msg--violent" : ""
+                  }`}
+                  style={{ opacity: 1 }}
+                >
+                  <span className="bracket-red">[SYSTEM]</span>{" "}
+                  {typeErrorText || "Verification mismatch."}
                 </p>
               )}
 
               {typeStatus === "typing" && (
                 <div className="name-input-group" style={{ marginTop: 10 }}>
                   <input
-                    className="name-input"
+                    className={`name-input${typeErrorFlash ? " name-input--type-error" : ""}`}
                     type="text"
-                    value={typeInput}
+                    value={typeInputVisible}
                     onChange={handleTypeInputChange}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleTypeSubmit();
@@ -1571,66 +2449,224 @@ export default function SystemPopup() {
               )}
 
               {typeStatus === "checking" && (
-                <p className="system-message recalc-msg">
+                <p className="system-message recalc-msg" style={{ opacity: 1 }}>
                   <span className="bracket">[SYSTEM]</span> Checking...
                 </p>
               )}
 
               {typeStatus === "granted" && (
-                <p className="system-message type-granted-msg">
-                  <span className="bracket-green">[SYSTEM]</span> Access
-                  granted.
-                </p>
-              )}
-
-              {typeStatus === "failed" && (
-                <p className="s3-status-msg s3-status-msg--error">
-                  <span className="bracket-red">[SYSTEM]</span> Verification
-                  failed.
+                <p className="system-message type-granted-msg" style={{ opacity: 1 }}>
+                  <span className="bracket-green">[SYSTEM]</span> Access granted.
                 </p>
               )}
             </div>
           )}
 
+          {/* Stage 7 - Button boss */}
           {stage === 7 && (
-            <div key="s7" className="stage-block">
-              {(stage7Phase === "granted" || stage7Phase === "claiming") && (
-                <p className="system-message reward-granted-msg">
-                  <span className="bracket-green">[SYSTEM]</span> Reward
-                  granted.
+            <div className="stage-block">
+              <p className="system-message" style={{ opacity: 1 }}>
+                <span className="bracket">[SYSTEM]</span> It's just a button, {displayName}.
+              </p>
+
+              <p className="bar-pct" style={{ textAlign: "left", marginTop: 10 }}>
+                {stage7ProgressText}
+              </p>
+
+              <div className="type-phrase-box" style={{ marginTop: 10 }}>
+                <span className="type-phrase">{buttonBossHint}</span>
+              </div>
+
+              {buttonBossTaunt && (
+                <p className="invalid-msg">
+                  <span className="bracket-red">[SYSTEM]</span> {buttonBossTaunt}
                 </p>
               )}
 
-              {stage7Phase === "final" && (
-                <>
-                  <p className="system-message">
-                    <span className="bracket">[SYSTEM]</span> HAHA You got
-                    tricked. There is no reward.
+              {buttonBossPhase === "pass" && (
+                <p className="system-message type-granted-msg" style={{ opacity: 1 }}>
+                  <span className="bracket-green">[SYSTEM]</span> Level cleared.
+                </p>
+              )}
+
+              {buttonBossLevel === 1 && (
+                <div className="button-boss-area">
+                  <button className="button-boss-btn" onClick={() => handleButtonBossClick()}>
+                    {buttonBossLabel}
+                  </button>
+                  <p className="retry-text" style={{ opacity: 1 }}>
+                    Honesty submissions: {fakeHonestyCount}/{fakeHonestyTarget}
                   </p>
-                  <p className="retry-text">Hope you got ragebaited (  ̗  ̗𓂁𓂄  ‿  ̫𓂁𓂄  ̗  ̗).</p>
-                </>
+                </div>
+              )}
+
+              {buttonBossLevel === 2 && (
+                <div className="button-boss-lane">
+                  <button
+                    className={`button-boss-btn${
+                      shrinkPhase === "second" ? " button-boss-btn--danger" : ""
+                    }`}
+                    style={{
+                      transform: `translate(${shrinkTravelX + shrinkJitter.x}px, ${shrinkJitter.y}px) scale(${shrinkScale})`,
+                    }}
+                    onClick={() => handleButtonBossClick()}
+                  >
+                    {shrinkPhase === "second" ? "CATCH ME" : buttonBossLabel}
+                  </button>
+                </div>
+              )}
+
+              {buttonBossLevel === 3 && (
+                <div className="button-boss-grid">
+                  {(multiButtons.length > 0 ? multiButtons : buildMultiButtons(1, isCheatOn ? 6 : 9)).map((btn) => (
+                    <button
+                      key={btn.id}
+                      className="button-boss-btn button-boss-btn--small"
+                      style={{
+                        outline:
+                          isCheatOn && btn.isReal
+                            ? "1px solid rgba(90,255,140,0.95)"
+                            : undefined,
+                      }}
+                      onClick={() => handleButtonBossClick(btn.isReal)}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                  <p className="retry-text" style={{ gridColumn: "1 / -1", opacity: 1 }}>
+                    Real hits: {multiHits}/{multiRequiredHits || (isCheatOn ? 1 : 2)}
+                  </p>
+                </div>
+              )}
+
+              {buttonBossLevel === 4 && (
+                <div className="button-boss-area">
+                  <button className="button-boss-btn" onClick={() => handleButtonBossClick()}>
+                    {buttonBossLabel}
+                  </button>
+                </div>
+              )}
+
+              {buttonBossLevel === 5 && (
+                <div className="button-boss-area">
+                  <button
+                    className="button-boss-btn"
+                    onMouseDown={handleButtonBossHoldStart}
+                    onMouseUp={handleButtonBossHoldEnd}
+                    onMouseLeave={handleButtonBossHoldEnd}
+                  >
+                    {buttonBossLabel}
+                  </button>
+
+                  <div className="boss-meter">
+                    <div className="boss-meter-fill" style={{ width: `${holdProgress}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {buttonBossLevel === 6 && (
+                <div className="button-boss-area">
+                  <button
+                    className={`button-boss-btn${rhythmActive ? " button-boss-btn--pulse" : ""}`}
+                    onClick={() => handleButtonBossClick()}
+                  >
+                    {buttonBossLabel}
+                  </button>
+                  <p className="retry-text" style={{ opacity: 1 }}>
+                    Rhythm hits: {rhythmHits}/{isCheatOn ? 1 : 4}
+                  </p>
+                </div>
+              )}
+
+              {buttonBossLevel === 7 && (
+                <div className="button-boss-area">
+                  <button className="button-boss-btn" onClick={() => handleButtonBossClick()}>
+                    {buttonBossLabel}
+                  </button>
+                  <div className="boss-meter">
+                    <div className="boss-meter-fill" style={{ width: `${staminaValue}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {buttonBossLevel === 8 && (
+                <div className="button-boss-area">
+                  <div className="one-frame-wrap">
+                    {oneFrameVisible ? (
+                      <button
+                        className="button-boss-btn button-boss-btn--flash"
+                        onClick={() => handleButtonBossClick()}
+                      >
+                        {buttonBossLabel}
+                      </button>
+                    ) : (
+                      <div className="one-frame-placeholder" />
+                    )}
+                  </div>
+                  <p className="retry-text" style={{ opacity: 1 }}>
+                    Flash catches: {oneFrameHits}/{isCheatOn ? 1 : 2}
+                  </p>
+                </div>
               )}
             </div>
           )}
         </div>
 
         <div className="popup-footer">
+          {/* Stage 1 */}
           {stage === 1 && !isGlitching && (
-            <button
-              ref={buttonRef}
-              className="accept-btn accept-btn--dodge"
-              style={{
-                transform: `translate(${translate.x}px, ${translate.y}px)`,
-              }}
-              onClick={handleAccept}
-            >
-              Accept
-            </button>
+            <>
+              {stage1Phase === "first" && (
+                <button
+                  ref={buttonRef}
+                  className="accept-btn accept-btn--dodge"
+                  style={{
+                    transform: `translate(${translate.x}px, ${translate.y}px)`,
+                  }}
+                  onClick={handleAccept}
+                >
+                  Accept
+                </button>
+              )}
+
+              {stage1Phase === "glitching" && (
+                <div
+                  className="accept-transition-wrap"
+                  style={{
+                    transform: `translate(${translate.x}px, ${translate.y}px)`,
+                  }}
+                >
+                  <div className="accept-btn accept-btn--glitching">
+                    <span className="accept-btn-glitch-text">A̸C̷C̶E̷P̷T̶</span>
+                  </div>
+
+                  <div className="accept-transition-error">
+                    {stage1ErrorText}
+                  </div>
+                </div>
+              )}
+
+              {stage1Phase === "second" && (
+                <button
+                  ref={buttonRef}
+                  className="accept-btn accept-btn--dodge accept-btn--second accept-btn--second-small"
+                  style={{
+                    transform: `translate(${translate.x}px, ${translate.y}px)`,
+                  }}
+                  onClick={handleAccept}
+                >
+                  ACCEPT NOW
+                </button>
+              )}
+            </>
           )}
 
+          {/* Stage 2 */}
           {stage === 2 && !isGlitching && !isRecalculating && (
             <button
-              className={`accept-btn${pendingAction ? " accept-btn--pending" : ""}${btnJammed ? " accept-btn--jammed" : ""}`}
+              className={`accept-btn${pendingAction ? " accept-btn--pending" : ""}${
+                btnJammed ? " accept-btn--jammed" : ""
+              }`}
               onClick={() => withDelay(() => setStage(3))}
               disabled={pendingAction || btnJammed}
             >
@@ -1638,6 +2674,7 @@ export default function SystemPopup() {
             </button>
           )}
 
+          {/* Stage 3 */}
           {stage === 3 && stage3Status === "typing" && (
             <button
               className={`accept-btn${btnJammed ? " accept-btn--jammed" : ""}`}
@@ -1653,13 +2690,15 @@ export default function SystemPopup() {
               Next
             </button>
           )}
-
+          
+          {/* Stage 5 */}
           {stage === 5 && stage5Mode === "skip" && (
-            <button className="accept-btn" onClick={handleSkipPopupNext}>
+            <button className="accept-btn" onClick={handleSkipMathPopupNext}>
               Next
             </button>
           )}
 
+          {/* Stage 6 */}
           {stage === 6 && typeStatus === "typing" && (
             <button
               className={`accept-btn${btnJammed ? " accept-btn--jammed" : ""}`}
@@ -1670,13 +2709,10 @@ export default function SystemPopup() {
             </button>
           )}
 
-          {stage === 7 && stage7Phase === "granted" && (
-            <button
-              className={`accept-btn accept-btn--granted${pendingAction ? " accept-btn--pending" : ""}${btnJammed ? " accept-btn--jammed" : ""}`}
-              onClick={handleClaim}
-              disabled={pendingAction || btnJammed}
-            >
-              {pendingAction ? "PROCESSING..." : "Claim"}
+          {/* Stage 7 */}
+          {stage === 7 && buttonBossLevel === 8 && buttonBossPhase === "pass" && (
+            <button className="accept-btn" onClick={handleClaimRewards}>
+              Continue
             </button>
           )}
         </div>
