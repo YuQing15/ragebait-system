@@ -166,3 +166,7 @@ This project intentionally creates:
 - frustrating flows  
 
 If users get annoyed… it’s working.
+
+## Screenshot Sample
+
+![Sample](./draft.png)
