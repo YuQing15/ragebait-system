@@ -169,4 +169,7 @@ If users get annoyed… it’s working.
 
 ## Screenshot Sample
 
+### User mode
+![Sample2](./draft2.png)
+### Admin mode
 ![Sample](./draft.png)
