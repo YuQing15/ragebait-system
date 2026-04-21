@@ -1,3 +1,4 @@
+⚠️ Best experienced on desktop. Mobile is not supported.
 # Ragebait System UI (Ragebait Interaction Project)
 
 A deliberately frustrating, game-like UI inspired by Solo Leveling system prompts.
@@ -173,3 +174,26 @@ If users get annoyed… it’s working.
 ![Sample2](./draft2.png)
 ### Admin mode
 ![Sample](./draft.png)
+
+## Getting Started
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/YuQing15/ragebait-system.git
+cd ragebait-system
+```
+
+### 2. Install dependencies
+```bash
+npm install
+```
+
+### 3. Run the project
+```bash
+npm run dev
+```
+
+### 4. Open in browser
+
+Go to:  
+http://localhost:5173
